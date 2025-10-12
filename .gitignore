@@ -1,0 +1,34 @@
+# Visual Studio + Rider
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build output
+bin/
+obj/
+Debug/
+Release/
+artifacts/
+
+# Dotnet
+*.lock.json
+project.lock.json
+
+# Logs
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# SQLite local db (dev/demo)
+app.db
+
+# Node (if you add a React frontend later)
+node_modules/
+
+# Docker
+*.env
