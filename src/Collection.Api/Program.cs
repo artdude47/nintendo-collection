@@ -40,14 +40,32 @@ var api = app.MapGroup("/api").RequireRateLimiting("tight");
 // Health-check
 api.MapGet("/health", () => Results.Ok(new { ok = true, time = DateTime.UtcNow }));
 
-// Platforms: seeded list from OnModelCreating (so you see data on day 1)
+// Platforms: seeded list 
 api.MapGet("/platforms", async (AppDbContext db) =>
     await db.Platforms.AsNoTracking().OrderBy(p => p.Id).ToListAsync());
 
-// Items: simple list for now
-api.MapGet("/items", async (AppDbContext db) =>
-    await db.Items.Include(i => i.Platform).AsNoTracking()
-        .OrderByDescending(i => i.EstimatedValue).ToListAsync());
+//Items: filtering + pagination
+api.MapGet("/items", async (AppDbContext db, string? platform, bool? isCib, int page = 1, int pageSize = 50) =>
+{
+    page = page < 1 ? 1 : page;
+    pageSize = Math.Clamp(pageSize, 1, 100);
+
+    var q = db.Items.Include(i => i.Platform).AsNoTracking();
+
+    if (!string.IsNullOrWhiteSpace(platform)) q = q.Where(i => i.Platform!.Name == platform);
+
+    if (isCib is not null) q = q.Where(i => (i.HasBox && i.HasManual) == isCib);
+
+    var total = await q.CountAsync();
+
+    var items = await q
+        .OrderByDescending(i => i.EstimatedValue)
+        .Skip((page - 1) * pageSize)
+        .Take(pageSize)
+        .ToListAsync();
+
+    return Results.Ok(new { total, page, pageSize, items });
+});
 
 // Create Item: minimal validation
 api.MapPost("/items", async (AppDbContext db, Collection.Domain.Item item) =>
