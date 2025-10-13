@@ -3,6 +3,7 @@ using System;
 using Collection.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Collection.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251013200401_AddAmiiboPlatform")]
+    partial class AddAmiiboPlatform
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.9");
@@ -29,8 +32,8 @@ namespace Collection.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<double?>("EstimatedValue")
-                        .HasColumnType("REAL");
+                    b.Property<decimal?>("EstimatedValue")
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("HasBox")
                         .HasColumnType("INTEGER");
@@ -47,8 +50,8 @@ namespace Collection.Infrastructure.Migrations
                     b.Property<DateOnly?>("PurchaseDate")
                         .HasColumnType("TEXT");
 
-                    b.Property<double?>("PurchasePrice")
-                        .HasColumnType("REAL");
+                    b.Property<decimal?>("PurchasePrice")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Region")
                         .IsRequired()

@@ -22,6 +22,9 @@ namespace Collection.Infrastructure
             b.Entity<Item>().Property(x => x.Title).IsRequired().HasMaxLength(200);
             b.Entity<Item>().HasIndex(x => new { x.UserId, x.PlatformId, x.Title });
 
+            b.Entity<Item>().Property(x => x.PurchasePrice).HasConversion<double?>();
+            b.Entity<Item>().Property(x => x.EstimatedValue).HasConversion<double?>();
+
             // Seed platforms (so GET /platforms returns something on day 1)
             b.Entity<Platform>().HasData(
                 new Platform { Id = 1, Name = "NES" },
@@ -35,7 +38,8 @@ namespace Collection.Infrastructure
                 new Platform { Id = 9, Name = "Game Boy Color" },
                 new Platform { Id = 10, Name = "Game Boy Advance" },
                 new Platform { Id = 11, Name = "Nintendo DS" },
-                new Platform { Id = 12, Name = "Nintendo 3DS" }
+                new Platform { Id = 12, Name = "Nintendo 3DS" },
+                new Platform { Id = 13, Name = "Amiibo" }
             );
         }
     }
