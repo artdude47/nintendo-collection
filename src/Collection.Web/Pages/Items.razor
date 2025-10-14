@@ -5,6 +5,15 @@
 <h1 class="mb-3">Nintendo Collection</h1>
 
 <div class="mb-3">
+    <input class="ms-3" placeholder="Search title…" @bind="search" />
+    <select class="ms-2" @bind="sort">
+        <option value="value_desc">Value (high→low)</option>
+        <option value="value_asc">Value (low→high)</option>
+        <option value="title_asc">Title (A→Z)</option>
+        <option value="title_desc">Title (Z→A)</option>
+        <option value="created_desc">Newest</option>
+        <option value="created_asc">Oldest</option>
+    </select>
   <label>Platform:</label>
   <select @bind="selectedPlatform">
     <option value="">(All)</option>
@@ -71,13 +80,16 @@ else
 }
 
 @code {
-  List<ApiClient.PlatformDto> platforms = new();
-  ApiClient.Page<ApiClient.ItemDto> page = new(0,1,50,new());
-  string? selectedPlatform;
-  string? selectedCib; // "", "true", "false"
-  int _page = 1;
-  int _pageSize = 50;
-  int totalPages => Math.Max(1, (int)Math.Ceiling((double)page.total / _pageSize));
+    List<ApiClient.PlatformDto> platforms = new();
+    ApiClient.Page<ApiClient.ItemDto> page = new(0,1,50,new());
+    string? selectedPlatform;
+    string? selectedCib; // "", "true", "false"
+    string? search;
+    string sort = "value_desc";
+    int _page = 1;
+    int _pageSize = 50;
+    int totalPages => Math.Max(1, (int)Math.Ceiling((double)page.total / _pageSize));
+
 
   // upload state
   byte[]? lastUpload; string? lastUploadName; bool canCommitImport; string importStatus = "";
@@ -90,10 +102,10 @@ else
 
   async Task Load()
   {
-    bool? isCib = selectedCib == null || selectedCib == "" ? null :
-                  selectedCib == "true" ? true : false;
-    page = await Api.GetItemsAsync(selectedPlatform, isCib, _page, _pageSize);
-    StateHasChanged();
+    bool? isCib = string.IsNullOrEmpty(selectedCib) ? null : selectedCib == "true" ? true : false;
+        page = await Api.GetItemsAsync(selectedPlatform, isCib, _page, _pageSize, search, sort);
+    //page = await Api.GetItemsAsync(selectedPlatform, isCib, _page, _pageSize);
+    //StateHasChanged();
   }
 
   void Prev() { if (_page > 1) { _page--; _ = Load(); } }

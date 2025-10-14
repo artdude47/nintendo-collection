@@ -69,22 +69,45 @@ api.MapGet("/health", () => Results.Ok(new { ok = true, time = DateTime.UtcNow }
 api.MapGet("/platforms", async (AppDbContext db) =>
     await db.Platforms.AsNoTracking().OrderBy(p => p.Id).ToListAsync());
 
-//Items: filtering + pagination
-api.MapGet("/items", async (AppDbContext db, string? platform, bool? isCib, int page = 1, int pageSize = 50) =>
+//Items: filtering + search + sorting + pagination
+api.MapGet("/items", async (
+    AppDbContext db, 
+    string? platform, 
+    bool? isCib, 
+    string? q,
+    string? sort,
+    int page = 1, 
+    int pageSize = 50) =>
 {
     page = page < 1 ? 1 : page;
     pageSize = Math.Clamp(pageSize, 1, 100);
 
-    var q = db.Items.Include(i => i.Platform).AsNoTracking();
+    var query = db.Items.Include(i => i.Platform).AsNoTracking();
 
-    if (!string.IsNullOrWhiteSpace(platform)) q = q.Where(i => i.Platform!.Name == platform);
+    if (!string.IsNullOrWhiteSpace(platform)) query = query.Where(i => i.Platform!.Name == platform);
 
-    if (isCib is not null) q = q.Where(i => (i.HasBox && i.HasManual) == isCib);
+    if (isCib is not null) query = query.Where(i => (i.HasBox && i.HasManual) == isCib);
 
-    var total = await q.CountAsync();
+    if (!string.IsNullOrWhiteSpace(q))
+    {
+        var pattern = $"%{q.Trim()}%";
+        query = query.Where(i => EF.Functions.Like(i.Title, pattern));
+    }
 
-    var items = await q
-        .OrderByDescending(i => i.EstimatedValue ?? 0)
+    var total = await query.CountAsync();
+
+    query = (sort ?? "value_desc") switch
+    {
+       "title_asc" => query.OrderBy(i => i.Title),
+        "title_desc" => query.OrderByDescending(i => i.Title),
+        "value_asc" => query.OrderBy(i => i.EstimatedValue ?? 0),
+        "value_desc" => query.OrderByDescending(i => i.EstimatedValue ?? 0),
+        "created_asc" => query.OrderBy(i => i.CreatedAt),
+        "created_desc" => query.OrderByDescending(i => i.CreatedAt),
+        _ => query.OrderByDescending(i => i.EstimatedValue ?? 0),
+    };
+
+    var items = await query
         .Skip((page - 1) * pageSize)
         .Take(pageSize)
         .ToListAsync();

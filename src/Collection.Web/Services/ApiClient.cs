@@ -20,11 +20,14 @@ namespace Collection.Web.Services
             PlatformDto? platform);
 
         public async Task<List<PlatformDto>> GetPlatformsAsync() => await _http.GetFromJsonAsync<List<PlatformDto>>("/api/platforms") ?? new();
-        public async Task<Page<ItemDto>> GetItemsAsync(string? platform, bool? isCib, int page, int pageSize)
+        public async Task<Page<ItemDto>> GetItemsAsync(
+            string? platform, bool? isCib, int page, int pageSize, string? q = null, string? sort = null)
         {
             var qs = new List<string>();
             if (!string.IsNullOrWhiteSpace(platform)) qs.Add($"platform={Uri.EscapeDataString(platform)}");
             if (isCib is not null) qs.Add($"isCib={isCib.ToString()!.ToLower()}");
+            if (!string.IsNullOrWhiteSpace(q)) qs.Add($"q={Uri.EscapeDataString(q)}");
+            if (!string.IsNullOrWhiteSpace(sort)) qs.Add($"sort={Uri.EscapeDataString(sort)}");
             qs.Add($"page={page}");
             qs.Add($"pageSize={pageSize}");
             var url = "/api/items" + "?" + string.Join("&", qs);
