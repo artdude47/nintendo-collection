@@ -1,11 +1,13 @@
 using Collection.Domain;
 using Collection.Infrastructure;          // our DbContext lives here
+using Microsoft.AspNetCore.Http.Json;
+using System.Text.Json.Serialization; 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;  // (cheap-mode safety)
 using Microsoft.EntityFrameworkCore;      // UseSqlite, DbContext
 using Microsoft.OpenApi.Models;
 using System.Globalization;
-using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,6 +32,21 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.MapType<DateOnly>(() => new OpenApiSchema { Type = "string", Format = "date" });
     c.MapType<DateOnly?>(() => new OpenApiSchema { Type = "string", Format = "date" });
+});
+
+builder.Services.AddScoped(sp =>
+{
+    var nav = sp.GetRequiredService<NavigationManager>();
+    return new HttpClient { BaseAddress = new Uri(nav.BaseUri) };
+});
+builder.Services.AddScoped<Collection.Web.Services.ApiClient>();
+
+builder.Services.AddRazorPages();
+builder.Services.AddServerSideBlazor();
+
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 
 var app = builder.Build();
@@ -260,6 +277,8 @@ api.MapPost("/import", async (
     }
 }).Accepts<IFormFile>("multipart/form-data").Produces<Collection.Api.ImportReport>(StatusCodes.Status200OK).Produces(StatusCodes.Status400BadRequest).DisableAntiforgery();
 
-
-app.MapGet("/", () => Results.Redirect("/swagger"));
+app.UseStaticFiles();
+app.MapBlazorHub();
+app.MapFallbackToPage("/_Host");
+//app.MapGet("/", () => Results.Redirect("/swagger"));
 app.Run();
