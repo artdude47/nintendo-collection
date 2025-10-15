@@ -86,6 +86,12 @@ namespace Collection.Web.Services
             };
         }
 
+        public async Task<bool> CreateItemAsync(object body)
+        {
+            var resp = await _http.PostAsJsonAsync("/api/items", body);
+            return resp.IsSuccessStatusCode;
+        }
+
         public async Task<bool> UpdateItemsAsync(int id, ItemDto item)
         {
             var resp = await _http.PutAsJsonAsync($"/api/items/{id}", item);
