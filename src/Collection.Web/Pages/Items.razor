@@ -44,11 +44,37 @@
 
 @if (page.items.Count == 0)
 {
-  <p>No items.</p>
+    <p>No items.</p>
 }
 else
 {
-  <table class="table table-striped table-sm">
+    @if (stats is not null)
+    {
+        <div class="alert alert-light border d-flex flex-wrap gap-4 mb-3">
+            <div><strong>Total Items:</strong> @stats.totalItems</div>
+            <div><strong>CIB:</strong> @stats.totalCib</div>
+            <div><strong>Total Value:</strong> @stats.totalEstimatedValue.ToString("C")</div>
+        </div>
+
+        <details class="mb-3">
+            <summary>By Platform</summary>
+            <table class="table table-sm">
+                <thread><tr><th>Platform</th><th>Items</th><th>CIB</th><th>Value</th></tr></thread>
+                <tbody>
+                    @foreach (var p in stats.byPlatform)
+                    {
+                        <tr>
+                            <td>@p.platform</td>
+                            <td>@p.count</td>
+                            <td>@p.cib</td>
+                            <td>@p.value.ToString("C")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </details>
+    }
+    <table class="table table-striped table-sm">
     <thead>
       <tr>
         <th>Title</th>
@@ -157,6 +183,7 @@ else
     int _page = 1;
     int _pageSize = 50;
     int totalPages => Math.Max(1, (int)Math.Ceiling((double)page.total / _pageSize));
+    ApiClient.StatsDto stats = new();
 
 
     // upload state
@@ -166,14 +193,14 @@ else
     {
         platforms = await Api.GetPlatformsAsync();
         await Load();
+        stats = await Api.GetStatsAsync();
     }
 
     async Task Load()
     {
         bool? isCib = string.IsNullOrEmpty(selectedCib) ? null : selectedCib == "true" ? true : false;
         page = await Api.GetItemsAsync(selectedPlatform, isCib, _page, _pageSize, search, sort);
-        //page = await Api.GetItemsAsync(selectedPlatform, isCib, _page, _pageSize);
-        //StateHasChanged();
+        stats = await Api.GetStatsAsync();
     }
 
     void Prev() { if (_page > 1) { _page--; _ = Load(); } }
@@ -205,6 +232,7 @@ else
         importStatus = "Imported. Refreshing…";
         _page = 1;
         await Load();
+        stats = await Api.GetStatsAsync();
     }
 
     void StartEdit(ApiClient.ItemDto source)
@@ -293,6 +321,7 @@ else
         // refresh list
         _page = 1;
         await Load();
+        stats = await Api.GetStatsAsync();
     }
 
     async Task ConfirmDelete(int id)
@@ -304,6 +333,7 @@ else
         importStatus = "Deleted.";
         _page = 1;
         await Load();
+        stats = await Api.GetStatsAsync();
     }
 
     async Task<bool> JSConfirm(string message) => await JS.InvokeAsync<bool>("confirm", message);

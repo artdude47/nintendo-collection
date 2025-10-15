@@ -45,6 +45,23 @@ namespace Collection.Web.Services
             public PlatformDto? platform { get; set; }
         }
 
+        public class StatsDto
+        {
+            public int totalItems { get; set; }
+            public int totalCib { get; set; }
+            public double totalEstimatedValue { get; set; }
+            public List<StatsByPlatform> byPlatform { get; set; } = new();
+            public class StatsByPlatform
+            {
+                public string platform { get; set; } = "";
+                public int count { get; set; }
+                public int cib { get; set; }
+                public double value { get; set; }
+            }
+        }
+
+        public async Task<StatsDto> GetStatsAsync() => await _http.GetFromJsonAsync<StatsDto>("/api/stats") ?? new StatsDto();
+
         public async Task<List<PlatformDto>> GetPlatformsAsync() => await _http.GetFromJsonAsync<List<PlatformDto>>("/api/platforms") ?? new();
         public async Task<Page<ItemDto>> GetItemsAsync(
             string? platform, bool? isCib, int page, int pageSize, string? q = null, string? sort = null)

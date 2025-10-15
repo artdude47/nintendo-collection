@@ -193,6 +193,36 @@ api.MapDelete("/items/{id:int}", async (int id, AppDbContext db) =>
     return Results.NoContent();
 });
 
+api.MapGet("/stats", async (AppDbContext db) =>
+{
+    //Overall stats
+    var totalItems = await db.Items.CountAsync();
+    var totalCib = await db.Items.CountAsync(i => i.HasBox && i.HasManual);
+    var totalValue = await db.Items.SumAsync(i => (double?)(i.EstimatedValue ?? 0)) ?? 0.0;
+
+    //by platform
+    var byPlatform = await db.Items
+        .Include(i => i.Platform)
+        .GroupBy(i => i.Platform!.Name)
+        .Select(g => new
+        {
+            platform = g.Key,
+            count = g.Count(),
+            cib = g.Count(i => i.HasBox && i.HasManual),
+            value = g.Sum(i => (double?)(i.EstimatedValue ?? 0)) ?? 0.0
+        })
+        .OrderByDescending(x => x.count)
+        .ToListAsync();
+
+    return Results.Ok(new
+    {
+        totalItems,
+        totalCib,
+        totalEstimatedValue = Math.Round(totalValue, 2),
+        byPlatform
+    });
+});
+
 api.MapPost("/import", async (
     IFormFile file,       
     bool dryRun,         
@@ -337,5 +367,4 @@ api.MapPost("/import", async (
 app.UseStaticFiles();
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
-//app.MapGet("/", () => Results.Redirect("/swagger"));
 app.Run();
