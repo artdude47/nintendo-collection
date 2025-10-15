@@ -42,7 +42,7 @@ builder.Services.AddScoped(sp =>
 builder.Services.AddScoped<Collection.Web.Services.ApiClient>();
 
 builder.Services.AddRazorPages();
-builder.Services.AddServerSideBlazor();
+builder.Services.AddServerSideBlazor().AddCircuitOptions(o => o.DetailedErrors = true);
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {

@@ -7,8 +7,8 @@
 <h1 class="mb-3">Nintendo Collection</h1>
 
 <div class="mb-3">
-    <input class="ms-3" placeholder="Search title…" @bind="search" />
-    <select class="ms-2" @bind="sort">
+    <input class="ms-3" placeholder="Search title…" value="@search" @oninput="OnSearchInput" />
+    <select class="ms-2" @onchange="OnSortChange" value="@sort">
         <option value="value_desc">Value (high→low)</option>
         <option value="value_asc">Value (low→high)</option>
         <option value="title_asc">Title (A→Z)</option>
@@ -17,7 +17,7 @@
         <option value="created_asc">Oldest</option>
     </select>
   <label>Platform:</label>
-  <select @bind="selectedPlatform">
+  <select @onchange="OnPlatformChange" value="@selectedPlatform">
     <option value="">(All)</option>
     @foreach (var p in platforms)
     {
@@ -26,7 +26,7 @@
   </select>
 
   <label class="ms-3">CIB:</label>
-  <select @bind="selectedCib">
+  <select @onchange="OnCibChange" value="@selectedCib">
     <option value="">(Any)</option>
     <option value="true">CIB only</option>
     <option value="false">Non-CIB only</option>
@@ -168,6 +168,7 @@ else
 }
 
 @code {
+
     ApiClient.ItemDto? editing;
     List<ApiClient.PlatformDto> platforms = new();
     ApiClient.Page<ApiClient.ItemDto> page = new()
@@ -184,6 +185,8 @@ else
     int _pageSize = 50;
     int totalPages => Math.Max(1, (int)Math.Ceiling((double)page.total / _pageSize));
     ApiClient.StatsDto stats = new();
+
+    CancellationTokenSource? _searchCts;
 
 
     // upload state
@@ -233,6 +236,50 @@ else
         _page = 1;
         await Load();
         stats = await Api.GetStatsAsync();
+    }
+
+    void OnSearchInput(ChangeEventArgs e)
+    {
+        search = e.Value?.ToString();
+        _ = DebouncedLoad();
+    }
+
+    void OnPlatformChange(ChangeEventArgs e)
+    {
+        selectedPlatform = e.Value?.ToString();
+        _page = 1;
+        _ = DebouncedLoad();
+    }
+
+    void OnCibChange(ChangeEventArgs e)
+    {
+        selectedCib = e.Value?.ToString();
+        _page = 1;
+        _ = DebouncedLoad();
+    }
+
+    void OnSortChange(ChangeEventArgs e)
+    {
+        sort = e.Value?.ToString() ?? "value_desc";
+        _page = 1;
+        _ = DebouncedLoad();
+    }
+
+    async Task DebouncedLoad(int delayMs = 300)
+    {
+        _searchCts?.Cancel();
+        _searchCts = new CancellationTokenSource();
+        var token = _searchCts.Token;
+
+        try
+        {
+            await Task.Delay(delayMs, token);
+            if (token.IsCancellationRequested) return;
+
+            await Load();
+            StateHasChanged();
+        }
+        catch (TaskCanceledException) { }
     }
 
     void StartEdit(ApiClient.ItemDto source)
