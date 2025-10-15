@@ -11,9 +11,9 @@ using Microsoft.AspNetCore.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.WebHost.UseStaticWebAssets();
+
 // --- Persistence: SQLite ---
-// For Dev: keeps a file named app.db next to the API.
-// For Fly.io: we’ll point this to /data/app.db (mounted volume).
 var cs = builder.Configuration.GetConnectionString("Sqlite") ?? "Data Source=app.db";
 builder.Services.AddDbContext<AppDbContext>(opt => opt.UseSqlite(cs));
 
@@ -367,4 +367,5 @@ api.MapPost("/import", async (
 app.UseStaticFiles();
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
+app.UseStaticFiles();
 app.Run();
