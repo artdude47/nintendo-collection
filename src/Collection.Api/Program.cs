@@ -159,6 +159,40 @@ api.MapGet("/export.csv", async (AppDbContext db) =>
     return Results.File(bytes, "text/csv", "collection.csv");
 });
 
+//UPDATE item
+api.MapPut("/items/{id:int}", async (int id, AppDbContext db, Collection.Domain.Item dto) =>
+{
+    var entity = await db.Items.FindAsync(id);
+    if (entity is null) return Results.NotFound();
+
+    if (string.IsNullOrWhiteSpace(dto.Title)) return Results.BadRequest("Title required");
+
+    entity.Title = dto.Title.Trim();
+    entity.PlatformId = dto.PlatformId;
+    entity.Region = string.IsNullOrWhiteSpace(dto.Region) ? "NTSC-U" : dto.Region.Trim();
+    entity.Condition = dto.Condition;
+    entity.HasBox = dto.HasBox;
+    entity.HasManual = dto.HasManual;
+    entity.PurchasePrice = dto.PurchasePrice;
+    entity.PurchaseDate = dto.PurchaseDate;
+    entity.EstimatedValue = dto.EstimatedValue;
+    entity.Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes.Trim();
+    entity.UpdatedAt = DateTime.UtcNow;
+
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+});
+
+// DELETE item
+api.MapDelete("/items/{id:int}", async (int id, AppDbContext db) =>
+{
+    var entity = await db.Items.FindAsync(id);
+    if (entity is null) return Results.NotFound();
+    db.Items.Remove(entity);
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+});
+
 api.MapPost("/import", async (
     IFormFile file,       
     bool dryRun,         

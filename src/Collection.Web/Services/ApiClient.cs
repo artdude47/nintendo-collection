@@ -11,13 +11,39 @@ namespace Collection.Web.Services
             _http = http;
         }
 
-        public record Page<T>(int total, int page, int pageSize, List<T> items);
-        public record PlatformDto(int id, string name);
-        public record ItemDto(
-            int id, string title, string region, string? notes,
-            string condition, bool hasBox, bool hasManual,
-            decimal? purchasePrice, string? purchaseDate, decimal? estimatedValue,
-            PlatformDto? platform);
+        public class Page<T>
+        {
+            public int total { get; set; }
+            public int page { get; set; }
+            public int pageSize { get; set; }
+            public List<T> items { get; set; } = new();
+        }
+
+        public class PlatformDto
+        {
+            public int id { get; set; }
+            public string name { get; set; } = "";
+        }
+
+        public class ItemDto
+        {
+            public int id { get; set; }
+            public string title { get; set; } = "";
+            public string region { get; set; } = "NTSC-U";
+            public string? notes { get; set; }
+
+            // enum as string from API
+            public string condition { get; set; } = "Good";
+            
+            public bool hasBox { get; set; }
+            public bool hasManual { get; set; }
+
+            public decimal? purchasePrice { get; set; }
+            public string? purchaseDate { get; set; } 
+            public decimal? estimatedValue { get; set; }
+
+            public PlatformDto? platform { get; set; }
+        }
 
         public async Task<List<PlatformDto>> GetPlatformsAsync() => await _http.GetFromJsonAsync<List<PlatformDto>>("/api/platforms") ?? new();
         public async Task<Page<ItemDto>> GetItemsAsync(
@@ -30,9 +56,29 @@ namespace Collection.Web.Services
             if (!string.IsNullOrWhiteSpace(sort)) qs.Add($"sort={Uri.EscapeDataString(sort)}");
             qs.Add($"page={page}");
             qs.Add($"pageSize={pageSize}");
+
             var url = "/api/items" + "?" + string.Join("&", qs);
             var res = await _http.GetFromJsonAsync<Page<ItemDto>>(url);
-            return res ?? new Page<ItemDto>(0, page, pageSize, new());
+
+            return res ?? new Page<ItemDto>
+            {
+                total = 0,
+                page = page,
+                pageSize = pageSize,
+                items = new List<ItemDto>()
+            };
+        }
+
+        public async Task<bool> UpdateItemsAsync(int id, ItemDto item)
+        {
+            var resp = await _http.PutAsJsonAsync($"/api/items/{id}", item);
+            return resp.IsSuccessStatusCode;
+        }
+
+        public async Task<bool> DeleteItemAsync(int id)
+        {
+            var resp = await _http.DeleteAsync($"/api/items/{id}");
+            return resp.IsSuccessStatusCode;
         }
 
         public string ExportUrl() => "/api/export.csv";
