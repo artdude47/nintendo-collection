@@ -327,6 +327,11 @@ else
         if (!string.IsNullOrWhiteSpace(sort) && sort != "value_desc") dict["sort"] = sort; // omit default
         if (_page > 1) dict["page"] = _page;
 
+        var target = Nav.GetUriWithQueryParameters(dict);
+
+        if (string.Equals(target, Nav.Uri, StringComparison.OrdinalIgnoreCase))
+            return; // no change))
+
         var uri = Nav.GetUriWithQueryParameters(dict);
         // replace history entry so Back button isn’t spammy
         Nav.NavigateTo(uri, replace: true);
