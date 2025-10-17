@@ -1,10 +1,24 @@
 ﻿@page "/items"
+<PageTitle>Nintendo Collection</PageTitle>
 @using Collection.Web.Services
 @inject ApiClient Api
 @inject HttpClient Http
 @inject IJSRuntime JS
+@inject NavigationManager Nav
 
-<h1 class="mb-3">Nintendo Collection</h1>
+<h1 class="mb-3 no-select">Nintendo Collection</h1>
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080">
+    @foreach (var t in toasts)
+    {
+        <div class="toats show align-items-center border-0 mb-2 @($"text-bg-{t.variant}")" role="alert" aria-live="assertive" aria-atomic="true" >
+            <div class="d-flex">
+                <div class="toast-body">@t.message</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" @onclick="() => DismissToast(t)"></button>
+            </div>
+        </div>
+    }
+</div>
 
 <div class="mb-3">
     <input class="ms-3" placeholder="Search title…" value="@search" @oninput="OnSearchInput" />
@@ -32,7 +46,6 @@
     <option value="false">Non-CIB only</option>
   </select>
 
-  <button class="ms-3" @onclick="Load">Apply</button>
   <a class="ms-3" href="@Api.ExportUrl()">Export CSV</a>
 </div>
 
@@ -42,9 +55,13 @@
   <span class="ms-2 text-muted">@importStatus</span>
 </div>
 
-@if (page.items.Count == 0)
+@if (isLoading)
 {
-    <p>No items.</p>
+    <div class="small-muted mt-3">Loading...</div>
+}
+else if (page.items.Count == 0)
+{
+    <div class="text-muted mt-4">No items found.</div>
 }
 else
 {
@@ -250,23 +267,93 @@ else
     string? NewPlatformName;
     Dictionary<string,string> NewErrors = new() { ["title"] = "", ["platform"] = "" };
     string createStatus = "";
+    record Toast(string message, string variant, DateTime expires);
+    List<Toast> toasts = new();
+    bool _queryApplied;
+    bool isLoading;
 
+
+    void ToastInfo(string msg) => AddToast(msg, "secondary");
+    void ToastOk(string msg) => AddToast(msg, "success");
+    void ToastWarn(string msg) => AddToast(msg, "warning");
+    void ToastError(string msg) => AddToast(msg, "danger");
+
+    void AddToast(string msg, string variant)
+    {
+        var t = new Toast(msg, variant, DateTime.UtcNow.AddSeconds(4));
+        toasts.Add(t);
+        _ = AutoDismiss(t);
+    }
+
+    async Task AutoDismiss(Toast t)
+    {
+        await Task.Delay(4000);
+        DismissToast(t);
+    }
+
+    void DismissToast(Toast t)
+    {
+        toasts.Remove(t);
+        StateHasChanged();
+    }
 
     // upload state
     byte[]? lastUpload; string? lastUploadName; bool canCommitImport; string importStatus = "";
 
+    void ApplyQueryOnce()
+    {
+        if (_queryApplied) return;
+        _queryApplied = true;
+
+        var uri = new Uri(Nav.Uri);
+        var qs = System.Web.HttpUtility.ParseQueryString(uri.Query);
+
+        selectedPlatform = NullIfEmpty(qs["platform"]);
+        selectedCib = NullIfEmpty(qs["isCib"]);       // "true" | "false" | null
+        search = NullIfEmpty(qs["q"]);
+        sort = NullIfEmpty(qs["sort"]) ?? "value_desc";
+        if (int.TryParse(qs["page"], out var p) && p > 0) _page = p;
+
+        static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s;
+    }
+
+    void UpdateQueryUrl()
+    {
+        // Build query dict
+        var dict = new Dictionary<string, object?>();
+        if (!string.IsNullOrWhiteSpace(selectedPlatform)) dict["platform"] = selectedPlatform;
+        if (!string.IsNullOrWhiteSpace(selectedCib)) dict["isCib"] = selectedCib;
+        if (!string.IsNullOrWhiteSpace(search)) dict["q"] = search;
+        if (!string.IsNullOrWhiteSpace(sort) && sort != "value_desc") dict["sort"] = sort; // omit default
+        if (_page > 1) dict["page"] = _page;
+
+        var uri = Nav.GetUriWithQueryParameters(dict);
+        // replace history entry so Back button isn’t spammy
+        Nav.NavigateTo(uri, replace: true);
+    }
+
     protected override async Task OnInitializedAsync()
     {
         platforms = await Api.GetPlatformsAsync();
+        ApplyQueryOnce();
         await Load();
         stats = await Api.GetStatsAsync();
     }
 
     async Task Load()
     {
-        bool? isCib = string.IsNullOrEmpty(selectedCib) ? null : selectedCib == "true" ? true : false;
-        page = await Api.GetItemsAsync(selectedPlatform, isCib, _page, _pageSize, search, sort);
-        stats = await Api.GetStatsAsync();
+        isLoading = true;
+        try
+        {
+            bool? isCib = string.IsNullOrEmpty(selectedCib) ? null : selectedCib == "true" ? true : false;
+            page = await Api.GetItemsAsync(selectedPlatform, isCib, _page, _pageSize, search, sort);
+            stats = await Api.GetStatsAsync();
+        }
+        finally
+        {
+            isLoading = false;
+            UpdateQueryUrl();
+        }
     }
 
     void Prev() { if (_page > 1) { _page--; _ = Load(); } }

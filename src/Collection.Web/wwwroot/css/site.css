@@ -4,6 +4,8 @@ html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
+.no-select { user-select: none;}
+
 h1:focus {
     outline: none;
 }
