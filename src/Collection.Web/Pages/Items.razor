@@ -27,7 +27,7 @@
 <!-- Toolbar: Primary actions live here -->
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div class="d-flex gap-2">
-        <button class="btn btn-success btn-sm" title="Add a new item" @onclick="() => ShowNew = true">
+        <button class="btn btn-success btn-sm" title="Add a new item" @onclick="OpenNewModal">
             <span class="oi oi-plus me-1"></span>Add Item
         </button>
         <a class="btn btn-outline-secondary btn-sm" title="Download your collection as CSV" href="@Api.ExportUrl()">
@@ -257,6 +257,76 @@ else {
             <span class="ms-3 text-muted">@createStatus</span>
         </div>
     }
+
+    <!-- Edit Item Modal -->
+    <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Item</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" @onclick="CancelEdit"></button>
+                </div>
+
+                <div class="modal-body">
+                @if (editing is not null)
+                {
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label class="form-label" for="edit-title">Title</label>
+                            <input id="edit-title" class="form-control" @bind="editing.title" @bind:event="oninput" placeholder="Enter Title..." maxlength="200" autofocus />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Platform</label>
+                            <select class="form-select" @bind="editing.platform!.name">
+                                @foreach (var p in platforms)
+                                {
+                                    <option value="@p.name">@p.name</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">Condition</label>
+                            <select class="form-select" @bind="editing.condition">
+                                @foreach (var c in conditionOptions)
+                                {
+                                    <option value="@c">@c</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label class="form-label">Has Box</label><br />
+                            <input type="checkbox" class="form-check-input" @bind="editing.hasBox" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Has Manual</label><br />
+                            <input type="checkbox" class="form-check-input" @bind="editing.hasManual" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Est. Value</label>
+                            <input class="form-control" type="number" step="0.01" @bind="editing.estimatedValue" />
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">Notes</label>
+                            <input class="form-control" @bind="editing.notes" />
+                        </div>
+                    </div>
+                    <div class="small text-muted mt-2">@editStatus</div>
+                }
+                else
+                {
+                    <div class="text-muted">No item selected.</div>
+                }
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal" @onclick="CancelEdit">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveEdit">Save</button>
+            </div>
+            </div>
+        </div>
+    </div>
 
 @code {
     // ---- State & DI ------
@@ -503,7 +573,7 @@ else {
     }
 
     //---- Edit/Create Handlers ----
-    void StartEdit(ApiClient.ItemDto source)
+    async Task StartEdit(ApiClient.ItemDto source)
     {
         editing = new ApiClient.ItemDto
         {
@@ -524,19 +594,34 @@ else {
             }
         };
         editStatus = "";
+        await JS.InvokeVoidAsync("modal.show", "editModal");
+        StateHasChanged();
     }
 
-    void CancelEdit()
+    async Task OpenNewModal()
+    {
+        ShowNew = true;
+        await JS.InvokeVoidAsync("modal.show", "newModal");
+    }
+
+    async Task CloseNewModal()
+    {
+        ShowNew = false;
+        ResetNew();
+        await JS.InvokeVoidAsync("modal.hide", "newModal");
+    }
+
+    async void CancelEdit()
     {
         editing = null;
         editStatus = "";
+        await JS.InvokeVoidAsync("modal.hide", "editModal");
     }
 
     async Task SaveEdit()
     {
         if (editing is null) return;
 
-        // Map platform name back to id (platforms list you already loaded)
         var plat = platforms.FirstOrDefault(p => p.name == editing!.platform?.name);
         if (plat.name is null)
         {
@@ -544,7 +629,6 @@ else {
             return;
         }
 
-        // Build payload expected by API (same shape as ItemDto works fine)
         var payload = new ApiClient.ItemDto
         {
             id = editing.id,
@@ -581,6 +665,9 @@ else {
             editStatus = $"Save failed: {(int)ok.StatusCode}";
             return;
         }
+
+        ToastOk("Item Saved.");
+        await JS.InvokeVoidAsync("modal.hide", "editModal");
 
         editStatus = "Saved.";
         editing = null;
@@ -638,7 +725,9 @@ else {
         var ok = await Api.CreateItemAsync(body);
         if (!ok) { createStatus = "Create failed."; return; }
 
+        ToastOk("Item Created.");
         createStatus = "Created.";
+        await JS.InvokeVoidAsync("modal.hide", "newModal");
         ShowNew = false;
         ResetNew();
 
