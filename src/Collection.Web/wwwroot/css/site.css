@@ -63,7 +63,7 @@ a, .btn-link {
 }
 
 .table-collection col.col-title {
-    width: 35%;
+    width: 30%;
 }
 
 .table-collection col.col-platform {
@@ -83,7 +83,11 @@ a, .btn-link {
 }
 
 .table-collection col.col-notes {
-    width: 20%;
+    width: 10%;
+}
+
+.table-collection col.col-actions {
+    width: 10%;
 }
 
 

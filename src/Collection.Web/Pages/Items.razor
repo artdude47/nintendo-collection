@@ -6,12 +6,16 @@
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 
-<h1 class="mb-3 no-select">Nintendo Collection</h1>
 
+<!-- Header -->
+<h1 class="mb-2 page-title no-select">Nintendo Collection</h1>
+
+<!-- TOASTS -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080">
     @foreach (var t in toasts)
     {
-        <div class="toast show align-items-center border-0 mb-2 @($"text-bg-{t.variant}")" role="alert" aria-live="assertive" aria-atomic="true" >
+        <div class="toast show align-items-center border-0 mb-2 @($"text-bg-{t.variant}")"
+            role="alert" aria-live="assertive" aria-atomic="true" >
             <div class="d-flex">
                 <div class="toast-body">@t.message</div>
                 <button type="button" class="btn-close btn-close-white me-2 m-auto" @onclick="() => DismissToast(t)"></button>
@@ -20,72 +24,52 @@
     }
 </div>
 
-<div class="mb-3">
-    <input class="ms-3" placeholder="Search title…" value="@search" @oninput="OnSearchInput" />
-  <label>Platform:</label>
-  <select @onchange="OnPlatformChange" value="@selectedPlatform">
-    <option value="">(All)</option>
-    @foreach (var p in platforms)
-    {
-      <option value="@p.name">@p.name</option>
-    }
-  </select>
-
-  <label class="ms-3">CIB:</label>
-  <select @onchange="OnCibChange" value="@selectedCib">
-    <option value="">(Any)</option>
-    <option value="true">CIB only</option>
-    <option value="false">Non-CIB only</option>
-  </select>
-
-  <a class="ms-3" href="@Api.ExportUrl()">Export CSV</a>
+<!-- Toolbar: Primary actions live here -->
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div class="d-flex gap-2">
+        <button class="btn btn-success btn-sm" title="Add a new item" @onclick="() => ShowNew = true">
+            <span class="oi oi-plus me-1"></span>Add Item
+        </button>
+        <a class="btn btn-outline-secondary btn-sm" title="Download your collection as CSV" href="@Api.ExportUrl()">
+            <span class="oi oi-data-transfer-download me-1"></span>Export CSV
+        </a>
+    </div>
 </div>
 
-<div class="mb-3">
-  <InputFile OnChange="UploadCsvDryRun" /> 
-  <button class="ms-2" @onclick="ConfirmImport" disabled="@(!canCommitImport)">Commit last upload</button>
-  <span class="ms-2 text-muted">@importStatus</span>
-</div>
-
-@if (isLoading)
+<!-- Stats Summary Card -->
+@if (stats is not null)
 {
-    <div class="small-muted mt-3">Loading...</div>
+    <div class="alert alert-light border d-flex flex-wrap gap-4 align-items-center mb-3">
+        <div><strong>Total Items:</strong> @stats.totalItems</div>
+        <div><strong>CIB:</strong> @stats.totalCib</div>
+        <div><strong>Total Estimated Value:</strong> @stats.totalEstimatedValue.ToString("C")</div>
+    </div>
+}
+
+<!-- CSV Utilities -->
+<details class="mb-3">
+    <summary class="fw-semibold">Data (CSV Import)</summary>
+    <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
+        <InputFile OnChange="UploadCsvDryRun" />
+        <button class="btn btn-outline-primary btn-sm" @onclick="ConfirmImport" disabled="@( !canCommitImport )">
+            Commit last upload
+        </button>
+        <span class="text-muted small">@importStatus</span>
+    </div>
+    <div class="form-text mt-1">
+        Upload a CSV to validate first (dry run), then commit to insert items.
+    </div>
+</details>
+
+<!-- Table Area (Loading/Empty/Data) -->
+@if (isLoading){
+    <div class="small text-muted">Loading...</div>
 }
 else if (page.items.Count == 0)
 {
-    <div class="text-muted mt-4">No items found.</div>
+    <div class="text-muted">No Items Found.</div>
 }
-else
-{
-    @if (stats is not null)
-    {
-        <div class="alert alert-light border d-flex flex-wrap gap-4 mb-3">
-            <div><strong>Total Items:</strong> @stats.totalItems</div>
-            <div><strong>CIB:</strong> @stats.totalCib</div>
-            <div><strong>Total Value:</strong> @stats.totalEstimatedValue.ToString("C")</div>
-        </div>
-
-        <details class="mb-3">
-            <summary>By Platform</summary>
-            <table class="table table-sm">
-                <thead><tr><th>Platform</th><th>Items</th><th>CIB</th><th>Value</th></tr></thead>
-                <tbody>
-                    @foreach (var p in stats.byPlatform)
-                    {
-                        <tr>
-                            <td>@p.platform</td>
-                            <td>@p.count</td>
-                            <td>@p.cib</td>
-                            <td>@p.value.ToString("C")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </details>
-    }
-
-    <button class="btn btn-success btn-sm me-2" @onclick="() => ShowNew = true">Add Item</button>
-
+else {
     <table class="table table-striped table-sm table-collection">
         <colgroup>
             <col class="col-title" />
@@ -96,6 +80,7 @@ else
             <col class="col-notes" />
             <col class="col-actions" />
         </colgroup>
+
         <thead>
                 <tr>
                     <th role="button" title="Sort by Title" @onclick='() => SetSort("title")'>
@@ -119,34 +104,47 @@ else
                     <th>Actions</th>
                 </tr>
         </thead>
+
     <tbody>
-    @foreach (var i in page.items)
-    {
-      <tr>
-        <td>@i.title</td>
-        <td>@i.platform?.name</td>
-        <td>@(i.hasBox && i.hasManual ? "Yes" : "No")</td>
-        <td>@i.condition</td>
-        <td>@(i.estimatedValue?.ToString("0.##") ?? "")</td>
-        <td>@i.notes</td>
-        <td>
-            <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => StartEdit(i)">Edit</button>
-            <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(i.id)">Delete</button>
-        </td>
-      </tr>
-    }
+        @foreach (var i in page.items)
+        {
+          <tr>
+            <td>@i.title</td>
+            <td>@i.platform?.name</td>
+            <td>@(i.hasBox && i.hasManual ? "Yes" : "No")</td>
+            <td>@i.condition</td>
+            <td>@(i.estimatedValue?.ToString("0.##") ?? "")</td>
+            <td>@i.notes</td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => StartEdit(i)">Edit</button>
+                <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(i.id)">Delete</button>
+            </td>
+          </tr>
+        }
     </tbody>
   </table>
 
-    @if (editing is not null)
+  <!-- Pagination -->
+  <div class="d-flex align-items-center">
+      <button class="btn btn-sm btn-outline-secondary" @onclick="Prev" disabled="@(_page <= 1)">Prev</button>
+      <span class="mx-3">Page @_page of @totalPages ( @(page.total) items )</span>
+      <button class="btn btn-sm btn-outline-secondary" @onclick="Next" disabled="@(_page >= totalPages)">Next</button>
+  </div>
+}
+
+<!-- Edit Panel -->
+@if (editing is not null)
     {
         <hr />
         <h5>Edit Item</h5>
+
+        <!-- Form Rows -->
         <div class="row g-2">
             <div class="col-md-6">
                 <label class="form-label">Title</label>
                 <input class="form-control" @bind="editing.title" />
             </div>
+
             <div class="col-md-3">
                 <label class="form-label">Platform</label>
                 <select class="form-select" @bind="editing.platform!.name">
@@ -156,6 +154,7 @@ else
                     }
                 </select>
             </div>
+
             <div class="col-md-3">
                 <label class="form-label">Condition</label>
                 <select class="form-select" @bind="editing.condition">
@@ -170,15 +169,18 @@ else
                 <label class="form-label">Has Box</label><br />
                 <input type="checkbox" class="form-check-input" @bind="editing.hasBox" />
             </div>
+
             <div class="col-md-2">
                 <label class="form-label">Has Manual</label><br />
                 <input type="checkbox" class="form-check-input" @bind="editing.hasManual" />
             </div>
+
             <div class="col-md-3">
                 <label class="form-label">Est. Value</label>
                 <input class="form-control" type="number" step="0.01"
                        @bind="editing.estimatedValue" />
             </div>
+
             <div class="col-md-5">
                 <label class="form-label">Notes</label>
                 <input class="form-control" @bind="editing.notes" />
@@ -192,16 +194,20 @@ else
         </div>
     }
 
+
+    <!-- Create Panel -->
     @if (ShowNew)
     {
         <hr />
         <h5>Add Item</h5>
+
         <div class="row g-2">
             <div class="col-md-6">
                 <label class="form-label">Title *</label>
                 <input class="form-control" @bind="NewItem.title" />
                 <div class="text-danger small">@NewErrors["title"]</div>
             </div>
+
             <div class="col-md-3">
                 <label class="form-label">Platform *</label>
                 <select class="form-select" @bind="NewPlatformName">
@@ -213,6 +219,7 @@ else
                 </select>
                 <div class="text-danger small">@NewErrors["platform"]</div>
             </div>
+
             <div class="col-md-3">
                 <label class="form-label">Condition</label>
                 <select class="form-select" @bind="NewItem.condition">
@@ -227,14 +234,17 @@ else
                 <label class="form-label">Has Box</label><br />
                 <input type="checkbox" class="form-check-input" @bind="NewItem.hasBox" />
             </div>
+
             <div class="col-md-2">
                 <label class="form-label">Has Manual</label><br />
                 <input type="checkbox" class="form-check-input" @bind="NewItem.hasManual" />
             </div>
+
             <div class="col-md-3">
                 <label class="form-label">Est. Value</label>
                 <input class="form-control" type="number" step="0.01" @bind="NewItem.estimatedValue" />
             </div>
+
             <div class="col-md-5">
                 <label class="form-label">Notes</label>
                 <input class="form-control" @bind="NewItem.notes" />
@@ -248,31 +258,26 @@ else
         </div>
     }
 
-
-  <div class="d-flex align-items-center">
-    <button @onclick="Prev" disabled="@(_page <= 1)">Prev</button>
-    <span class="mx-3">Page @_page of @totalPages ( @(page.total) items )</span>
-    <button @onclick="Next" disabled="@(_page >= totalPages)">Next</button>
-  </div>
-}
-
 @code {
-
+    // ---- State & DI ------
     ApiClient.ItemDto? editing;
     List<ApiClient.PlatformDto> platforms = new();
     ApiClient.Page<ApiClient.ItemDto> page = new()
         {
             total = 0, page = 1, pageSize = 50, items = new()
         };
+
     string? selectedPlatform;
-    string? selectedCib; // "", "true", "false"
+    string? selectedCib; 
     string? search;
+
     string editStatus = "";
     readonly string[] conditionOptions = new[] { "Poor", "Fair", "Good", "VeryGood", "Excellent", "Mint" };
     string sort = "value_desc";
     int _page = 1;
     int _pageSize = 50;
     int totalPages => Math.Max(1, (int)Math.Ceiling((double)page.total / _pageSize));
+
     ApiClient.StatsDto stats = new();
     CancellationTokenSource? _searchCts;
     bool ShowNew;
@@ -280,12 +285,14 @@ else
     string? NewPlatformName;
     Dictionary<string,string> NewErrors = new() { ["title"] = "", ["platform"] = "" };
     string createStatus = "";
+
     record Toast(string message, string variant, DateTime expires);
     List<Toast> toasts = new();
+
     bool _queryApplied;
     bool isLoading;
 
-
+    // ---- Toast Helpers ----
     void ToastInfo(string msg) => AddToast(msg, "secondary");
     void ToastOk(string msg) => AddToast(msg, "success");
     void ToastWarn(string msg) => AddToast(msg, "warning");
@@ -310,6 +317,7 @@ else
         StateHasChanged();
     }
 
+    // ---- Sorting UI ----
     RenderFragment SortGlyph(string key) => builder =>
     {
         bool isActive = sort.StartsWith(key, StringComparison.OrdinalIgnoreCase);
@@ -338,7 +346,6 @@ else
         }
         else
         {
-            // sensible defaults per column
             sort = key switch
             {
                 "value" => "value_desc",
@@ -354,9 +361,7 @@ else
         _ = DebouncedLoad(0);
     }
 
-    // upload state
-    byte[]? lastUpload; string? lastUploadName; bool canCommitImport; string importStatus = "";
-
+    //---- Query String Sync ----
     void ApplyQueryOnce()
     {
         if (_queryApplied) return;
@@ -366,7 +371,7 @@ else
         var qs = System.Web.HttpUtility.ParseQueryString(uri.Query);
 
         selectedPlatform = NullIfEmpty(qs["platform"]);
-        selectedCib = NullIfEmpty(qs["isCib"]);       // "true" | "false" | null
+        selectedCib = NullIfEmpty(qs["isCib"]);       
         search = NullIfEmpty(qs["q"]);
         sort = NullIfEmpty(qs["sort"]) ?? "value_desc";
         if (int.TryParse(qs["page"], out var p) && p > 0) _page = p;
@@ -376,7 +381,6 @@ else
 
     void UpdateQueryUrl()
     {
-        // Build query dict
         var dict = new Dictionary<string, object?>();
         if (!string.IsNullOrWhiteSpace(selectedPlatform)) dict["platform"] = selectedPlatform;
         if (!string.IsNullOrWhiteSpace(selectedCib)) dict["isCib"] = selectedCib;
@@ -387,13 +391,13 @@ else
         var target = Nav.GetUriWithQueryParameters(dict);
 
         if (string.Equals(target, Nav.Uri, StringComparison.OrdinalIgnoreCase))
-            return; // no change))
+            return; 
 
         var uri = Nav.GetUriWithQueryParameters(dict);
-        // replace history entry so Back button isn’t spammy
         Nav.NavigateTo(uri, replace: true);
     }
 
+    //---- Data Lifecycle ----
     protected override async Task OnInitializedAsync()
     {
         platforms = await Api.GetPlatformsAsync();
@@ -420,6 +424,9 @@ else
 
     void Prev() { if (_page > 1) { _page--; _ = Load(); } }
     void Next() { if (_page < totalPages) { _page++; _ = Load(); } }
+
+    //---- CSV Import ----
+    byte[]? lastUpload; string? lastUploadName; bool canCommitImport; string importStatus = "";
 
     async Task UploadCsvDryRun(InputFileChangeEventArgs e)
     {
@@ -450,6 +457,7 @@ else
         stats = await Api.GetStatsAsync();
     }
 
+    //---- Filter Inputs ----
     void OnSearchInput(ChangeEventArgs e)
     {
         search = e.Value?.ToString();
@@ -494,6 +502,7 @@ else
         catch (TaskCanceledException) { }
     }
 
+    //---- Edit/Create Handlers ----
     void StartEdit(ApiClient.ItemDto source)
     {
         editing = new ApiClient.ItemDto
@@ -551,21 +560,19 @@ else
             platform = new ApiClient.PlatformDto { id = plat.id, name = plat.name }
         };
 
-        // The API expects PlatformId, but our DTO nests Platform.
-        // Send a minimal anonymous object that matches the server Item:
         var body = new
         {
             id = payload.id,
             title = payload.title,
             region = payload.region,
             notes = payload.notes,
-            condition = payload.condition,         // enum string
+            condition = payload.condition,         
             hasBox = payload.hasBox,
             hasManual = payload.hasManual,
             purchasePrice = payload.purchasePrice,
             purchaseDate = payload.purchaseDate,
             estimatedValue = payload.estimatedValue,
-            platformId = plat.id                   // IMPORTANT
+            platformId = plat.id                   
         };
 
         var ok = await Http.PutAsJsonAsync($"/api/items/{payload.id}", body);
@@ -577,7 +584,6 @@ else
 
         editStatus = "Saved.";
         editing = null;
-        // refresh list
         _page = 1;
         await Load();
         stats = await Api.GetStatsAsync();
@@ -619,9 +625,9 @@ else
         var body = new
         {
             title = NewItem.title,
-            platformId = plat.id,           // API expects PlatformId
+            platformId = plat.id,           
             region = NewItem.region,
-            condition = NewItem.condition,  // enum string
+            condition = NewItem.condition,  
             hasBox = NewItem.hasBox,
             hasManual = NewItem.hasManual,
             estimatedValue = NewItem.estimatedValue,
@@ -636,7 +642,6 @@ else
         ShowNew = false;
         ResetNew();
 
-        // refresh list & stats
         _page = 1;
         await Load();
         stats = await Api.GetStatsAsync();
