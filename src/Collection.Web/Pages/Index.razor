@@ -2,5 +2,12 @@
 @inject NavigationManager Nav
 
 @code {
-    protected override void OnInitialized() => Nav.NavigateTo("/items", forceLoad: true);
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // replace avoids polluting history; no need for forceLoad
+            Nav.NavigateTo("/items", replace: true);
+        }
+    }
 }

@@ -104,6 +104,14 @@ api.MapGet("/items", async (
         "value_desc" => query.OrderByDescending(i => i.EstimatedValue ?? 0),
         "created_asc" => query.OrderBy(i => i.CreatedAt),
         "created_desc" => query.OrderByDescending(i => i.CreatedAt),
+        "platform_asc" => query.OrderBy(i => i.Platform!.Name),
+        "platform_desc" => query.OrderByDescending(i => i.Platform!.Name),
+        "cib_asc" => query.OrderBy(i => (i.HasBox && i.HasManual)),          
+        "cib_desc" => query.OrderByDescending(i => (i.HasBox && i.HasManual)),
+        "condition_asc" => query.OrderBy(i => i.Condition),
+        "condition_desc" => query.OrderByDescending(i => i.Condition),
+        "notes_asc" => query.OrderBy(i => i.Notes == null).ThenBy(i => i.Notes),        
+        "notes_desc" => query.OrderByDescending(i => i.Notes == null).ThenByDescending(i => i.Notes),
         _ => query.OrderByDescending(i => i.EstimatedValue ?? 0),
     };
 
@@ -367,5 +375,4 @@ api.MapPost("/import", async (
 app.UseStaticFiles();
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
-app.UseStaticFiles();
 app.Run();

@@ -40,6 +40,59 @@ a, .btn-link {
     color: red;
 }
 
+.table-collection {
+    table-layout: fixed;
+    width: 100%;
+    border-collapse: collapse;
+    box-sizing: border-box;
+}
+
+.table-collection th,
+.table-collection td {
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.table-collection th .sort-hint,
+.table-collection th .sort-glyph {
+    display: inline-block;
+    width: 1.1em;
+}
+
+.table-collection col.col-title {
+    width: 35%;
+}
+
+.table-collection col.col-platform {
+    width: 10%;
+}
+
+.table-collection col.col-cib {
+    width: 5%;
+}
+
+.table-collection col.col-condition {
+    width: 10%;
+}
+
+.table-collection col.col-value {
+    width: 10%;
+}
+
+.table-collection col.col-notes {
+    width: 20%;
+}
+
+
+
+th [role="button"] { cursor: pointer; user-select: none; white-space: nowrap; }
+th[role="button"]:hover .sort-hint { opacity: .9; text-decoration: underline dotted; }
+.sort-hint { opacity: .35; }
+.sort-glyph { font-weight: 600; }
+
 #blazor-error-ui {
     background: lightyellow;
     bottom: 0;
