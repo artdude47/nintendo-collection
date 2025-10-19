@@ -26,13 +26,22 @@
 
 <!-- Toolbar: Primary actions live here -->
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-    <div class="d-flex gap-2">
+    <div class="d-flex align-items-center gap-2">
         <button class="btn btn-success btn-sm" title="Add a new item" @onclick="OpenNewModal">
             <span class="oi oi-plus me-1"></span>Add Item
         </button>
+
         <a class="btn btn-outline-secondary btn-sm" title="Download your collection as CSV" href="@Api.ExportUrl()">
             <span class="oi oi-data-transfer-download me-1"></span>Export CSV
         </a>
+
+        <label for="pageSizeSel" class="form-label mb-0 small text-muted">Results Per Page:</label>
+        <select id="pageSizeSel" class="form-select form-select-sm w-auto" @onchange="OnPageSizeChange" value="@_pageSize">
+            @foreach (var s in pageSizeOptions)
+            {
+                <option value="@s">@s</option>
+            }
+        </select>
     </div>
 </div>
 
@@ -302,6 +311,8 @@ else {
     bool _queryApplied;
     bool isLoading;
 
+    readonly int[] pageSizeOptions = new[] { 25, 50, 100, 200 };
+
     // ---- Toast Helpers ----
     void ToastInfo(string msg) => AddToast(msg, "secondary");
     void ToastOk(string msg) => AddToast(msg, "success");
@@ -384,7 +395,10 @@ else {
         selectedCib = NullIfEmpty(qs["isCib"]);       
         search = NullIfEmpty(qs["q"]);
         sort = NullIfEmpty(qs["sort"]) ?? "value_desc";
+
+
         if (int.TryParse(qs["page"], out var p) && p > 0) _page = p;
+        if (int.TryParse(qs["pageSize"], out var ps) && ps > 0) _pageSize = ps;
 
         static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s;
     }
@@ -395,8 +409,9 @@ else {
         if (!string.IsNullOrWhiteSpace(selectedPlatform)) dict["platform"] = selectedPlatform;
         if (!string.IsNullOrWhiteSpace(selectedCib)) dict["isCib"] = selectedCib;
         if (!string.IsNullOrWhiteSpace(search)) dict["q"] = search;
-        if (!string.IsNullOrWhiteSpace(sort) && sort != "value_desc") dict["sort"] = sort; // omit default
+        if (!string.IsNullOrWhiteSpace(sort) && sort != "value_desc") dict["sort"] = sort; 
         if (_page > 1) dict["page"] = _page;
+        if (_pageSize != 50) dict["pageSize"] = _pageSize; 
 
         var target = Nav.GetUriWithQueryParameters(dict);
 
@@ -405,6 +420,17 @@ else {
 
         var uri = Nav.GetUriWithQueryParameters(dict);
         Nav.NavigateTo(uri, replace: true);
+    }
+
+    //---- Page Size Control ----
+    void OnPageSizeChange(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var s) && s > 0)
+        {
+            _pageSize = s;
+            _page = 1;
+            _ = DebouncedLoad(0);
+        }
     }
 
     //---- Data Lifecycle ----

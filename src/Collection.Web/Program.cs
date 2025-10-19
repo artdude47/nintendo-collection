@@ -9,6 +9,19 @@ using Microsoft.OpenApi.Models;
 using System.Globalization;
 using Microsoft.AspNetCore.Components;
 
+string[] DesiredPlatforms =
+{
+    //Home Consoles
+    "NES", "SNES", "N64", "GameCube", "Wii", "Wii U", "Switch", "Switch 2",
+
+
+    //Handhelds
+    "Game Boy", "Game Boy Color", "Game Boy Advance", "DS", "3DS", "Virtual Boy",
+
+    //Others
+    "Amiibo", "Other"
+};
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.WebHost.UseStaticWebAssets();
@@ -59,8 +72,28 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// --- Minimal API endpoints (MVP) ---
-var api = app.MapGroup("/api").RequireRateLimiting("tight");
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+    
+    var existing = new HashSet<string>(
+        db.Platforms.AsNoTracking().Select(p => p.Name),
+        StringComparer.OrdinalIgnoreCase);
+
+    var toAdd = DesiredPlatforms
+        .Where(p => !existing.Contains(p))
+        .Select(name => new Platform { Name = name }).ToList();
+
+    if (toAdd.Count > 0)
+    {
+        db.Platforms.AddRange(toAdd);
+        db.SaveChanges();
+    }
+}
+
+    // --- Minimal API endpoints (MVP) ---
+    var api = app.MapGroup("/api").RequireRateLimiting("tight");
 
 // Health-check
 api.MapGet("/health", () => Results.Ok(new { ok = true, time = DateTime.UtcNow }));
