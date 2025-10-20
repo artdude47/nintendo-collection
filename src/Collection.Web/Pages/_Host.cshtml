@@ -83,5 +83,20 @@
             }
         };
     </script>
+
+    <script>
+        window.bootstrapModalShow = (selector) => {
+            const el = document.querySelector(selector);
+            if (!el) return;
+            const modal = bootstrap.Modal.getOrCreateInstance(el);
+            modal.show();
+        };
+        window.bootstrapModalHide = (selector) => {
+            const el = document.querySelector(selector);
+            if (!el) return;
+            const modal = bootstrap.Modal.getOrCreateInstance(el);
+            modal.hide();
+        };
+    </script>
 </body>
 </html>

@@ -6,10 +6,12 @@ using System.Threading.Tasks;
 
 namespace Collection.Domain
 {
+    public enum  ItemKind { Game, Console, Controller, Peripheral, Other }
+
     public class Item
     {
         public int Id { get; set; }
-        public string UserId { get; set; } = "demo"; //Owner scope
+        public string UserId { get; set; } = "demo"; 
         public string Title { get; set; } = "";
         public int PlatformId { get; set; }
         public string Region { get; set; } = "NTSC-U";
@@ -30,5 +32,13 @@ namespace Collection.Domain
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
         public Platform? Platform { get; set; }
+
+        public string? Publisher { get; set; }
+        public string? Developer { get; set; }
+        public int? ReleaseYear { get; set; }
+        public string? Genre { get; set; }
+        public string? Barcode { get; set; }
+
+        public ItemKind? Kind { get; set; }
     }
 }

@@ -43,6 +43,21 @@
             }
         </select>
     </div>
+
+    <div class="d-flex align-items-center gap-2 flex-grow-1" style="min-width:240px;max-width:520px;">
+        <label for="searchBox" class="form-label mb-0 small text-muted me-1">Search:</label>
+        <input id="searchBox" 
+            class="form-control form-control-sm header-search"
+            placeholder="Search Title..."
+            value="@search"
+            @oninput="OnSearchInput" />
+        <button class="btn btn-outline-secondary btn-sm"
+            title="Clear Search"
+            @onclick="ClearSearch"
+            disabled="@(string.IsNullOrWhiteSpace(search))">
+            x
+        </button>
+    </div>
 </div>
 
 <!-- Stats Summary Card -->
@@ -86,7 +101,7 @@ else {
             <col class="col-cib" />
             <col class="col-condition" />
             <col class="col-value" />
-            <col class="col-notes" />
+            <col class="col-kind" />
             <col class="col-actions" />
         </colgroup>
 
@@ -107,8 +122,8 @@ else {
                     <th role="button" title="Sort by Value" @onclick='() => SetSort("value")'>
                         Est. Value @SortGlyph("value")
                     </th>
-                    <th role="button" title="Sort by Notes" @onclick='() => SetSort("notes")'>
-                        Notes @SortGlyph("notes")
+                    <th role="button" title="Sort by Kind" @onclick='() => SetSort("kind")'>
+                        Kind @SortGlyph("kind")
                     </th>
                     <th>Actions</th>
                 </tr>
@@ -117,14 +132,19 @@ else {
     <tbody>
         @foreach (var i in page.items)
         {
-          <tr>
+          <tr class="table-row-click"
+            style="cursor:pointer"
+            @onclick="() => OpenDetails(i.id)">
+
             <td>@i.title</td>
             <td>@i.platform?.name</td>
             <td>@(i.hasBox && i.hasManual ? "Yes" : "No")</td>
             <td>@i.condition</td>
             <td>@(i.estimatedValue?.ToString("0.##") ?? "")</td>
-            <td>@i.notes</td>
-            <td>
+            <td>@(i.kind?.ToString() ?? "")</td>
+
+            <!-- stop clicks in this cell from reaching the row-->
+            <td @onclick:stopPropagation="true">
                 <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => StartEdit(i)">Edit</button>
                 <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(i.id)">Delete</button>
             </td>
@@ -151,62 +171,121 @@ else {
             </div>
 
             <div class="modal-body">
-            @if (editing is not null)
-            {
-                <div class="row g-2">
-                    <div class="col-12">
-                        <label class="form-label" for="edit-title">Title</label>
-                        <input id="edit-title" class="form-control" @bind="editing.title" @bind:event="oninput" placeholder="Enter Title..." maxlength="200" autofocus />
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Platform</label>
-                        <select class="form-select" @bind="editing.platform!.name">
-                            @foreach (var p in platforms)
-                            {
-                                <option value="@p.name">@p.name</option>
-                            }
-                        </select>
+                @if (editing is not null)
+                {
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label" for="edit-title">Title *</label>
+                            <input id="edit-title" class="form-control" @bind="editing.title" @bind:event="oninput" maxlength="200" placeholder="Enter title…" autofocus />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Platform *</label>
+                            <select class="form-select" @bind="editing.platform!.name">
+                                @foreach (var p in platforms)
+                                {
+                                    <option value="@p.name">@p.name</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Kind</label>
+                            <select class="form-select" @bind="editing.kind">
+                                @foreach (var k in kindOptions)
+                                {
+                                    <option value="@k">@k</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Region</label>
+                            <input class="form-control" @bind="editing.region" placeholder="e.g., NTSC-U, PAL" />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Condition</label>
+                            <select class="form-select" @bind="editing.condition">
+                                @foreach (var c in conditionOptions)
+                                {
+                                    <option value="@c">@c</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-2 d-flex align-items-end gap-2">
+                            <div class="form-check">
+                                <input id="edit-box" type="checkbox" class="form-check-input" @bind="editing.hasBox" />
+                                <label for="edit-box" class="form-check-label">Has Box</label>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3 d-flex align-items-end gap-2">
+                            <div class="form-check">
+                                <input id="edit-manual" type="checkbox" class="form-check-input" @bind="editing.hasManual" />
+                                <label for="edit-manual" class="form-check-label">Has Manual</label>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">Est. Value</label>
+                            <input class="form-control" type="number" step="0.01" @bind="editing.estimatedValue" />
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">Purchase Price</label>
+                            <input class="form-control" type="number" step="0.01" @bind="editing.purchasePrice" />
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">Purchase Date</label>
+                            <input class="form-control" type="date" value="@ToDateInputValue(editing?.purchaseDate)" @onchange="OnEditPurchaseDateChanged" />
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">Release Year</label>
+                            <input class="form-control" type="number" @bind="editing.releaseYear" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Publisher</label>
+                            <input class="form-control" @bind="editing.publisher" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Developer</label>
+                            <input class="form-control" @bind="editing.developer" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Genre</label>
+                            <input class="form-control" @bind="editing.genre" placeholder="e.g., Platformer, RPG" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Barcode</label>
+                            <input class="form-control" @bind="editing.barcode" />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Notes</label>
+                            <textarea class="form-control" rows="4" @bind="editing.notes" placeholder="Long notes…"></textarea>
+                        </div>
                     </div>
 
-                    <div class="col-md-3">
-                        <label class="form-label">Condition</label>
-                        <select class="form-select" @bind="editing.condition">
-                            @foreach (var c in conditionOptions)
-                            {
-                                <option value="@c">@c</option>
-                            }
-                        </select>
-                    </div>
+                    <div class="small text-muted mt-2">@editStatus</div>
+                }
+                else
+                {
+                    <div class="text-muted">No item selected.</div>
+                }
+            </div>
 
-                    <div class="col-md-2">
-                        <label class="form-label">Has Box</label><br />
-                        <input type="checkbox" class="form-check-input" @bind="editing.hasBox" />
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Has Manual</label><br />
-                        <input type="checkbox" class="form-check-input" @bind="editing.hasManual" />
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Est. Value</label>
-                        <input class="form-control" type="number" step="0.01" @bind="editing.estimatedValue" />
-                    </div>
-                    <div class="col-md-5">
-                        <label class="form-label">Notes</label>
-                        <input class="form-control" @bind="editing.notes" />
-                    </div>
-                </div>
-                <div class="small text-muted mt-2">@editStatus</div>
-            }
-            else
-            {
-                <div class="text-muted">No item selected.</div>
-            }
-        </div>
-
-        <div class="modal-footer">
-            <button class="btn btn-secondary" data-bs-dismiss="modal" @onclick="CancelEdit">Cancel</button>
-            <button class="btn btn-primary" @onclick="SaveEdit">Save</button>
-        </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal" @onclick="CancelEdit">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveEdit">Save</button>
+            </div>
         </div>
     </div>
 </div>
@@ -217,18 +296,18 @@ else {
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Add Item</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"
-                        @onclick="CloseNewModal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" @onclick="CloseNewModal"></button>
             </div>
 
             <div class="modal-body">
-                <div class="row g-2">
-                    <div class="col-md-6">
+                <div class="row g-3">
+                    <div class="col-12">
                         <label class="form-label">Title *</label>
                         <input class="form-control" @bind="NewItem.title" />
                         <div class="text-danger small">@NewErrors["title"]</div>
                     </div>
-                    <div class="col-md-3">
+
+                    <div class="col-md-4">
                         <label class="form-label">Platform *</label>
                         <select class="form-select" @bind="NewPlatformName">
                             <option value="">(Select…)</option>
@@ -239,7 +318,23 @@ else {
                         </select>
                         <div class="text-danger small">@NewErrors["platform"]</div>
                     </div>
-                    <div class="col-md-3">
+
+                    <div class="col-md-4">
+                        <label class="form-label">Kind</label>
+                        <select class="form-select" @bind="NewItem.kind">
+                            @foreach (var k in kindOptions)
+                            {
+                                <option value="@k">@k</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Region</label>
+                        <input class="form-control" @bind="NewItem.region" placeholder="e.g., NTSC-U, PAL" />
+                    </div>
+
+                    <div class="col-md-4">
                         <label class="form-label">Condition</label>
                         <select class="form-select" @bind="NewItem.condition">
                             @foreach (var c in conditionOptions)
@@ -249,23 +344,66 @@ else {
                         </select>
                     </div>
 
-                    <div class="col-md-2">
-                        <label class="form-label">Has Box</label><br />
-                        <input type="checkbox" class="form-check-input" @bind="NewItem.hasBox" />
+                    <div class="col-md-2 d-flex align-items-end">
+                        <div class="form-check">
+                            <input id="new-box" type="checkbox" class="form-check-input" @bind="NewItem.hasBox" />
+                            <label for="new-box" class="form-check-label">Has Box</label>
+                        </div>
                     </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Has Manual</label><br />
-                        <input type="checkbox" class="form-check-input" @bind="NewItem.hasManual" />
+
+                    <div class="col-md-2 d-flex align-items-end">
+                        <div class="form-check">
+                            <input id="new-manual" type="checkbox" class="form-check-input" @bind="NewItem.hasManual" />
+                            <label for="new-manual" class="form-check-label">Has Manual</label>
+                        </div>
                     </div>
-                    <div class="col-md-3">
+
+                    <div class="col-md-4">
                         <label class="form-label">Est. Value</label>
                         <input class="form-control" type="number" step="0.01" @bind="NewItem.estimatedValue" />
                     </div>
-                    <div class="col-md-5">
+
+                    <div class="col-md-4">
+                        <label class="form-label">Purchase Price</label>
+                        <input class="form-control" type="number" step="0.01" @bind="NewItem.purchasePrice" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Purchase Date</label>
+                        <input class="form-control" type="date" value="@ToDateInputValue(editing?.purchaseDate)" @onchange="OnNewPurchaseDateChanged" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Release Year</label>
+                        <input class="form-control" type="number" @bind="NewItem.releaseYear" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Publisher</label>
+                        <input class="form-control" @bind="NewItem.publisher" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Developer</label>
+                        <input class="form-control" @bind="NewItem.developer" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Genre</label>
+                        <input class="form-control" @bind="NewItem.genre" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Barcode</label>
+                        <input class="form-control" @bind="NewItem.barcode" />
+                    </div>
+
+                    <div class="col-12">
                         <label class="form-label">Notes</label>
-                        <input class="form-control" @bind="NewItem.notes" />
+                        <textarea class="form-control" rows="4" @bind="NewItem.notes" placeholder="Long notes…"></textarea>
                     </div>
                 </div>
+
                 <div class="small text-muted mt-2">@createStatus</div>
             </div>
 
@@ -276,6 +414,78 @@ else {
         </div>
     </div>
 </div>
+
+
+<!-- Item Detail Modal -->
+<div class="modal fade" id="detailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Item Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" @onclick="@(() => showDetails = false)"></button>
+            </div>
+
+            <div class="modal-body">
+                @if (details is null)
+                {
+                    <div class="text-muted">Loading…</div>
+                }
+                else
+                {
+                    <div class="mb-2">
+                        <strong>@details.title</strong>
+                        <div class="text-muted">@details.platform?.name • @details.region</div>
+                    </div>
+
+                    <dl class="row mb-3">
+                        <dt class="col-sm-3">Kind</dt>
+                        <dd class="col-sm-9">@details.kind</dd>
+
+                        <dt class="col-sm-3">Condition</dt>
+                        <dd class="col-sm-9">
+                            @details.condition
+                            (@(details.hasBox ? "Box" : "No Box"); @(details.hasManual ? "Manual" : "No Manual"))
+                        </dd>
+
+                        <dt class="col-sm-3">Purchase Price</dt>
+                        <dd class="col-sm-9">@FmtMoney(details.purchasePrice)</dd>
+
+                        <dt class="col-sm-3">Purchase Date</dt>
+                        <dd class="col-sm-9">@FmtDateISO(details.purchaseDate)</dd>
+
+                        <dt class="col-sm-3">Estimated Value</dt>
+                        <dd class="col-sm-9">@FmtMoney(details.estimatedValue)</dd>
+
+                        <dt class="col-sm-3">Publisher</dt>
+                        <dd class="col-sm-9">@details.publisher</dd>
+
+                        <dt class="col-sm-3">Developer</dt>
+                        <dd class="col-sm-9">@details.developer</dd>
+
+                        <dt class="col-sm-3">Genre</dt>
+                        <dd class="col-sm-9">@details.genre</dd>
+
+                        <dt class="col-sm-3">Release Year</dt>
+                        <dd class="col-sm-9">@details.releaseYear</dd>
+
+                        <dt class="col-sm-3">Barcode</dt>
+                        <dd class="col-sm-9">@details.barcode</dd>
+                    </dl>
+
+                    <div>
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" rows="5" readonly>@details.notes</textarea>
+                    </div>
+                }
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal" @onclick="@(() => showDetails = false)">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 @code {
     // ---- State & DI ------
@@ -292,6 +502,7 @@ else {
 
     string editStatus = "";
     readonly string[] conditionOptions = new[] { "Poor", "Fair", "Good", "VeryGood", "Excellent", "Mint" };
+    readonly string[] kindOptions = new[] { "Game", "Console", "Controller", "Peripheral", "Accessory", "Other" };
     string sort = "value_desc";
     int _page = 1;
     int _pageSize = 50;
@@ -312,6 +523,12 @@ else {
     bool isLoading;
 
     readonly int[] pageSizeOptions = new[] { 25, 50, 100, 200 };
+
+    ApiClient.ItemDto? details;
+    bool showDetails;
+
+    string FmtMoney(decimal? v) => v is null ? "" : v.Value.ToString("C");
+    string FmtDate(DateOnly? d) => d is null ? "" : d.Value.ToString("yyyy-MM-dd");
 
     // ---- Toast Helpers ----
     void ToastInfo(string msg) => AddToast(msg, "secondary");
@@ -374,7 +591,7 @@ else {
                 "platform" => "platform_asc",
                 "cib" => "cib_desc",
                 "condition" => "condition_desc",
-                "notes" => "notes_asc",
+                "kind" => "kind_asc",
                 _ => $"{key}_asc"
             };
         }
@@ -500,6 +717,13 @@ else {
         _ = DebouncedLoad();
     }
 
+    void ClearSearch()
+    {
+        if (string.IsNullOrWhiteSpace(search)) return;
+        search = "";
+        _ = DebouncedLoad(0);
+    }
+
     void OnPlatformChange(ChangeEventArgs e)
     {
         selectedPlatform = e.Value?.ToString();
@@ -553,12 +777,21 @@ else {
             purchasePrice = source.purchasePrice,
             purchaseDate = source.purchaseDate,
             estimatedValue = source.estimatedValue,
+
+            publisher = source.publisher,
+            developer = source.developer,
+            genre = source.genre,
+            releaseYear = source.releaseYear,
+            barcode = source.barcode,
+            kind = source.kind,
+
             platform = source.platform is null ? null : new ApiClient.PlatformDto
             {
                 id = source.platform.id,
                 name = source.platform.name
             }
         };
+
         editStatus = "";
         await JS.InvokeVoidAsync("modal.show", "editModal");
         StateHasChanged();
@@ -607,6 +840,12 @@ else {
             purchasePrice = editing.purchasePrice,
             purchaseDate = editing.purchaseDate,
             estimatedValue = editing.estimatedValue,
+            publisher = editing.publisher,
+            developer = editing.developer,
+            genre = editing.genre,
+            releaseYear = editing.releaseYear,
+            barcode = editing.barcode,
+            kind = editing.kind,
             platform = new ApiClient.PlatformDto { id = plat.id, name = plat.name }
         };
 
@@ -615,14 +854,20 @@ else {
             id = payload.id,
             title = payload.title,
             region = payload.region,
-            notes = payload.notes,
-            condition = payload.condition,         
+            condition = payload.condition,
             hasBox = payload.hasBox,
             hasManual = payload.hasManual,
             purchasePrice = payload.purchasePrice,
             purchaseDate = payload.purchaseDate,
             estimatedValue = payload.estimatedValue,
-            platformId = plat.id                   
+            notes = payload.notes,
+            publisher = payload.publisher,
+            developer = payload.developer,
+            genre = payload.genre,
+            releaseYear = payload.releaseYear,
+            barcode = payload.barcode,
+            kind = payload.kind,
+            platformId = plat.id
         };
 
         var ok = await Http.PutAsJsonAsync($"/api/items/{payload.id}", body);
@@ -678,13 +923,21 @@ else {
         var body = new
         {
             title = NewItem.title,
-            platformId = plat.id,           
+            platformId = plat.id,
             region = NewItem.region,
-            condition = NewItem.condition,  
+            condition = NewItem.condition,
             hasBox = NewItem.hasBox,
             hasManual = NewItem.hasManual,
             estimatedValue = NewItem.estimatedValue,
-            notes = NewItem.notes
+            purchasePrice = NewItem.purchasePrice,
+            purchaseDate = NewItem.purchaseDate,
+            notes = NewItem.notes,
+            publisher = NewItem.publisher,
+            developer = NewItem.developer,
+            genre = NewItem.genre,
+            releaseYear = NewItem.releaseYear,
+            barcode = NewItem.barcode,
+            kind = NewItem.kind
         };
 
         createStatus = "Saving…";
@@ -701,6 +954,43 @@ else {
         await Load();
         stats = await Api.GetStatsAsync();
         StateHasChanged();
+    }
+
+    //---- Item Details ----
+    async Task OpenDetails(int id)
+    {
+        details = await Api.GetItemByIdAsync(id);
+        if (details is null) { ToastError("Item not found."); return; }
+        showDetails = true;
+        await JS.InvokeVoidAsync("bootstrapModalShow", "#detailsModal");
+    }
+
+    string FmtDateISO(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return "";
+        if (DateOnly.TryParse(s, out var d)) return d.ToString("yyyy-MM-dd");
+        if (DateTime.TryParse(s, out var dt)) return dt.ToString("yyyy-MM-dd");
+        return s;
+    }
+
+    string ToDateInputValue(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return "";
+        if (DateOnly.TryParse(s, out var d)) return d.ToString("yyyy-MM-dd");
+        if (DateTime.TryParse(s, out var dt)) return dt.ToString("yyyy-MM-dd");
+        return ""; 
+    }
+
+    void OnEditPurchaseDateChanged(ChangeEventArgs e)
+    {
+        var v = e.Value?.ToString();
+        editing!.purchaseDate = string.IsNullOrWhiteSpace(v) ? null : v;
+    }
+
+    void OnNewPurchaseDateChanged(ChangeEventArgs e)
+    {
+        var v = e.Value?.ToString();
+        NewItem!.purchaseDate = string.IsNullOrWhiteSpace(v) ? null : v;
     }
 
     async Task<bool> JSConfirm(string message) => await JS.InvokeAsync<bool>("confirm", message);

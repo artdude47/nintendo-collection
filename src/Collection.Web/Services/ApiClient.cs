@@ -1,4 +1,5 @@
 ﻿
+using Collection.Domain;
 using System.Net.Http.Json;
 
 namespace Collection.Web.Services
@@ -43,6 +44,13 @@ namespace Collection.Web.Services
             public decimal? estimatedValue { get; set; }
 
             public PlatformDto? platform { get; set; }
+            public string? publisher { get; set; }
+            public string? developer { get; set; }
+            public int? releaseYear { get; set; }
+            public string? genre { get; set; }
+            public string? barcode { get; set; }
+
+            public string? kind { get; set; }
         }
 
         public class StatsDto
@@ -64,13 +72,14 @@ namespace Collection.Web.Services
 
         public async Task<List<PlatformDto>> GetPlatformsAsync() => await _http.GetFromJsonAsync<List<PlatformDto>>("/api/platforms") ?? new();
         public async Task<Page<ItemDto>> GetItemsAsync(
-            string? platform, bool? isCib, int page, int pageSize, string? q = null, string? sort = null)
+            string? platform, bool? isCib, int page, int pageSize, string? q = null, string? sort = null, string? kind = null)
         {
             var qs = new List<string>();
             if (!string.IsNullOrWhiteSpace(platform)) qs.Add($"platform={Uri.EscapeDataString(platform)}");
             if (isCib is not null) qs.Add($"isCib={isCib.ToString()!.ToLower()}");
             if (!string.IsNullOrWhiteSpace(q)) qs.Add($"q={Uri.EscapeDataString(q)}");
             if (!string.IsNullOrWhiteSpace(sort)) qs.Add($"sort={Uri.EscapeDataString(sort)}");
+            if (!string.IsNullOrWhiteSpace(kind)) qs.Add($"kind={Uri.EscapeDataString(kind)}");
             qs.Add($"page={page}");
             qs.Add($"pageSize={pageSize}");
 
@@ -112,6 +121,11 @@ namespace Collection.Web.Services
             content.Add(new StreamContent(file), "file", fileName);
             var resp = await _http.PostAsync($"/api/import?dryRun={dryRun.ToString().ToLower()}", content);
             return await resp.Content.ReadAsStringAsync(); // show raw JSON result
+        }
+
+        public async Task<ItemDto?> GetItemByIdAsync(int id)
+        {
+            return await _http.GetFromJsonAsync<ItemDto>($"/api/items/{id}");
         }
     }
 }

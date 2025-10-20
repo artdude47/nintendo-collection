@@ -92,8 +92,8 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-    // --- Minimal API endpoints (MVP) ---
-    var api = app.MapGroup("/api").RequireRateLimiting("tight");
+// --- Minimal API endpoints (MVP) ---
+var api = app.MapGroup("/api").RequireRateLimiting("tight");
 
 // Health-check
 api.MapGet("/health", () => Results.Ok(new { ok = true, time = DateTime.UtcNow }));
@@ -109,6 +109,7 @@ api.MapGet("/items", async (
     bool? isCib,
     string? q,
     string? sort,
+    string? kind,
     int page = 1,
     int pageSize = 50) =>
 {
@@ -121,10 +122,27 @@ api.MapGet("/items", async (
 
     if (isCib is not null) query = query.Where(i => (i.HasBox && i.HasManual) == isCib);
 
+    if (!string.IsNullOrWhiteSpace(kind) && Enum.TryParse<ItemKind>(kind.Trim(), true, out var kindValue))
+    {
+        query = query.Where(i => i.Kind == kindValue);
+    }
+    
     if (!string.IsNullOrWhiteSpace(q))
     {
-        var pattern = $"%{q.Trim()}%";
-        query = query.Where(i => EF.Functions.Like(i.Title, pattern));
+        var s = q.Trim();
+        var pattern = $"%{s}%";
+
+        int? year = int.TryParse(s, out var yr) ? yr : null;
+
+        query = query.Where(i => 
+            EF.Functions.Like(i.Title, pattern) ||
+            EF.Functions.Like(i.Notes ?? "", pattern) ||
+            EF.Functions.Like(i.Platform!.Name, pattern) ||
+            EF.Functions.Like(i.Publisher ?? "", pattern) ||
+            EF.Functions.Like(i.Developer ?? "", pattern) ||
+            EF.Functions.Like(i.Genre ?? "", pattern) ||
+            (year != null && i.ReleaseYear == year)
+            );
     }
 
     var total = await query.CountAsync();
@@ -145,6 +163,8 @@ api.MapGet("/items", async (
         "condition_desc" => query.OrderByDescending(i => i.Condition),
         "notes_asc" => query.OrderBy(i => i.Notes == null).ThenBy(i => i.Notes),
         "notes_desc" => query.OrderByDescending(i => i.Notes == null).ThenByDescending(i => i.Notes),
+        "kind_asc" => query.OrderBy(i => i.Kind),
+        "kind_desc" => query.OrderByDescending(i => i.Kind),
         _ => query.OrderByDescending(i => i.EstimatedValue ?? 0),
     };
 
@@ -154,6 +174,13 @@ api.MapGet("/items", async (
         .ToListAsync();
 
     return Results.Ok(new { total, page, pageSize, items });
+});
+
+api.MapGet("/items/{id:int}", async (int id, AppDbContext db) =>
+{
+    var item = await db.Items.Include(i => i.Platform).AsNoTracking().FirstOrDefaultAsync(i => i.Id == id);
+
+    return item is null ? Results.NotFound() : Results.Ok(item);
 });
 
 // Create Item: minimal validation
@@ -175,7 +202,8 @@ api.MapGet("/export.csv", async (AppDbContext db) =>
     static string Dt(DateOnly? d) => d?.ToString("yyyy-MM-dd") ?? "";
 
     var sb = new System.Text.StringBuilder();
-    sb.AppendLine("Id,Title,Platform,Region,Condition,HasBox,HasManual,PurchasePrice,PurchaseDate,EstimatedValue,Notes,CreatedAt,UpdatedAt");
+
+    sb.AppendLine("Id,Title,Platform,Region,Condition,HasBox,HasManual,PurchasePrice,PurchaseDate,EstimatedValue,Notes,Publisher,Developer,Genre,ReleaseYear,Barcode,Kind,CreatedAt,UpdatedAt");
 
     foreach (var i in items)
     {
@@ -191,6 +219,12 @@ api.MapGet("/export.csv", async (AppDbContext db) =>
             Dt(i.PurchaseDate),
             D(i.EstimatedValue),
             Csv(i.Notes),
+            Csv(i.Publisher),
+            Csv(i.Developer),
+            Csv(i.Genre),
+            i.ReleaseYear?.ToString() ?? "",
+            Csv(i.Barcode),
+            Csv(i.Kind?.ToString()),
             i.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
             i.UpdatedAt.ToString("yyyy-MM-dd HH:mm:ss")
         ));
@@ -201,11 +235,10 @@ api.MapGet("/export.csv", async (AppDbContext db) =>
 });
 
 //UPDATE item
-api.MapPut("/items/{id:int}", async (int id, AppDbContext db, Collection.Domain.Item dto) =>
+api.MapPut("/items/{id:int}", async (int id, AppDbContext db, Item dto) =>
 {
     var entity = await db.Items.FindAsync(id);
     if (entity is null) return Results.NotFound();
-
     if (string.IsNullOrWhiteSpace(dto.Title)) return Results.BadRequest("Title required");
 
     entity.Title = dto.Title.Trim();
@@ -218,6 +251,15 @@ api.MapPut("/items/{id:int}", async (int id, AppDbContext db, Collection.Domain.
     entity.PurchaseDate = dto.PurchaseDate;
     entity.EstimatedValue = dto.EstimatedValue;
     entity.Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes.Trim();
+
+    // NEW fields
+    entity.Publisher = string.IsNullOrWhiteSpace(dto.Publisher) ? null : dto.Publisher.Trim();
+    entity.Developer = string.IsNullOrWhiteSpace(dto.Developer) ? null : dto.Developer.Trim();
+    entity.Genre = string.IsNullOrWhiteSpace(dto.Genre) ? null : dto.Genre.Trim();
+    entity.ReleaseYear = dto.ReleaseYear;
+    entity.Barcode = string.IsNullOrWhiteSpace(dto.Barcode) ? null : dto.Barcode.Trim();
+    entity.Kind = dto.Kind;
+
     entity.UpdatedAt = DateTime.UtcNow;
 
     await db.SaveChangesAsync();
@@ -303,7 +345,7 @@ api.MapPost("/import", async (
             PurchasePrice = Get(cells, 6),
             PurchaseDate = Get(cells, 7),
             EstimatedValue = Get(cells, 8),
-            Notes = Get(cells, 9)
+            Notes = Get(cells, 9),
         };
 
         var rr = new Collection.Api.ImportReport.RowResult

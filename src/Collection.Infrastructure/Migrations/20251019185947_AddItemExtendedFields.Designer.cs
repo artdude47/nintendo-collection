@@ -3,6 +3,7 @@ using System;
 using Collection.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Collection.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251019185947_AddItemExtendedFields")]
+    partial class AddItemExtendedFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.10");
@@ -45,9 +48,6 @@ namespace Collection.Infrastructure.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("HasManual")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int?>("Kind")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Notes")
