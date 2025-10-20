@@ -66,9 +66,12 @@
     <div class="alert alert-light border d-flex flex-wrap gap-4 align-items-center mb-3">
         <div><strong>Total Items:</strong> @stats.totalItems</div>
         <div><strong>CIB:</strong> @stats.totalCib</div>
+        <div><strong>Total Purchase Price:</strong> @stats.totalPurchasePrice.ToString("C")</div>
         <div><strong>Total Estimated Value:</strong> @stats.totalEstimatedValue.ToString("C")</div>
+        <div><strong>Est. Profit:</strong> @stats.totalEstimatedProfit.ToString("C")</div>
     </div>
 }
+
 
 <!-- CSV Utilities -->
 <details class="mb-3">
@@ -100,6 +103,7 @@ else {
             <col class="col-platform" />
             <col class="col-cib" />
             <col class="col-condition" />
+            <col class="col-purchase" />
             <col class="col-value" />
             <col class="col-kind" />
             <col class="col-actions" />
@@ -118,6 +122,9 @@ else {
                     </th>
                     <th role="button" title="Sort by Condition" @onclick='() => SetSort("condition")'>
                         Condition @SortGlyph("condition")
+                    </th>
+                    <th role="button" title="Sort by Purchase" @onclick='() => SetSort("purchase")'>
+                        Purchase Price @SortGlyph("purchase")
                     </th>
                     <th role="button" title="Sort by Value" @onclick='() => SetSort("value")'>
                         Est. Value @SortGlyph("value")
@@ -140,6 +147,7 @@ else {
             <td>@i.platform?.name</td>
             <td>@(i.hasBox && i.hasManual ? "Yes" : "No")</td>
             <td>@i.condition</td>
+            <td>@(i.purchasePrice?.ToString("0.##") ?? "0")</td>
             <td>@(i.estimatedValue?.ToString("0.##") ?? "")</td>
             <td>@(i.kind?.ToString() ?? "")</td>
 

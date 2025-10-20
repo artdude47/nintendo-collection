@@ -153,6 +153,8 @@ api.MapGet("/items", async (
         "title_desc" => query.OrderByDescending(i => i.Title),
         "value_asc" => query.OrderBy(i => i.EstimatedValue ?? 0),
         "value_desc" => query.OrderByDescending(i => i.EstimatedValue ?? 0),
+        "purchase_asc" => query.OrderBy(i => i.PurchasePrice ?? 0),
+        "purchase_desc" => query.OrderByDescending(i => i.PurchasePrice ?? 0),
         "created_asc" => query.OrderBy(i => i.CreatedAt),
         "created_desc" => query.OrderByDescending(i => i.CreatedAt),
         "platform_asc" => query.OrderBy(i => i.Platform!.Name),
@@ -281,6 +283,8 @@ api.MapGet("/stats", async (AppDbContext db) =>
     //Overall stats
     var totalItems = await db.Items.CountAsync();
     var totalCib = await db.Items.CountAsync(i => i.HasBox && i.HasManual);
+
+    var totalPurchase = await db.Items.SumAsync(i => (double?)(i.PurchasePrice ?? 0)) ?? 0.0;
     var totalValue = await db.Items.SumAsync(i => (double?)(i.EstimatedValue ?? 0)) ?? 0.0;
 
     //by platform
@@ -301,7 +305,9 @@ api.MapGet("/stats", async (AppDbContext db) =>
     {
         totalItems,
         totalCib,
+        totalPurchasePrice = Math.Round(totalPurchase, 2),
         totalEstimatedValue = Math.Round(totalValue, 2),
+        totalEstimatedProfit = Math.Round(totalValue - totalPurchase, 2),
         byPlatform
     });
 });

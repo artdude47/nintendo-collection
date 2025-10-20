@@ -57,7 +57,9 @@ namespace Collection.Web.Services
         {
             public int totalItems { get; set; }
             public int totalCib { get; set; }
+            public double totalPurchasePrice { get; set; }
             public double totalEstimatedValue { get; set; }
+            public double totalEstimatedProfit { get; set; }
             public List<StatsByPlatform> byPlatform { get; set; } = new();
             public class StatsByPlatform
             {
