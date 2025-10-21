@@ -164,7 +164,9 @@ else {
   <!-- Pagination -->
   <div class="d-flex align-items-center">
       <button class="btn btn-sm btn-outline-secondary" @onclick="Prev" disabled="@(_page <= 1)">Prev</button>
+
       <span class="mx-3">Page @_page of @totalPages ( @(page.total) items )</span>
+
       <button class="btn btn-sm btn-outline-secondary" @onclick="Next" disabled="@(_page >= totalPages)">Next</button>
   </div>
 }
@@ -670,21 +672,46 @@ else {
     async Task Load()
     {
         isLoading = true;
+        StateHasChanged();
+
         try
         {
             bool? isCib = string.IsNullOrEmpty(selectedCib) ? null : selectedCib == "true" ? true : false;
             page = await Api.GetItemsAsync(selectedPlatform, isCib, _page, _pageSize, search, sort);
             stats = await Api.GetStatsAsync();
+
+            UpdateQueryUrl();
+        }
+        catch (Exception ex)
+        {
+            ToastError($"Load failed: {ex.Message}");
         }
         finally
         {
             isLoading = false;
-            UpdateQueryUrl();
+            StateHasChanged();
         }
     }
 
-    void Prev() { if (_page > 1) { _page--; _ = Load(); } }
-    void Next() { if (_page < totalPages) { _page++; _ = Load(); } }
+    async Task Prev()
+    {
+        if (_page > 1)
+        {
+            _searchCts?.Cancel();
+            _page--;
+            await Load();
+        }
+    }
+
+    async Task Next()
+    {
+        if (_page < totalPages)
+        {
+            _searchCts?.Cancel();
+            _page++;
+            await Load();
+        }
+    }
 
     //---- CSV Import ----
     byte[]? lastUpload; string? lastUploadName; bool canCommitImport; string importStatus = "";
