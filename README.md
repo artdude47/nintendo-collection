@@ -1,23 +1,22 @@
-#Nintendo Collection
-Blazor + Minimal APIs + EF Core + SQLite
-Import, browse, and manage a personal Nintendo Collection with CSV import/export, filters, search, sort, paging, and basic edit/delete.
+# Nintendo Collection
+
+Blazor Server App + Minimal APIs + EF Core (SQLite) to import, browse, and manage a personal Nintendo collection.
 
 ## Features
  - **CSV import** with per-row validation & error report
- - **CSV export** of full collection
- - **Browse UI (Blazor Server)** with platform & CIB filters, search, sort, and paging
- - **CRUD** with edit inline, delete with confirmation
- - **SQLite**
+ - Fast **table** with search, sort, paging, and per-page selector
+ - **Add / Edit / Details** modals 
+ - Extra metadata: **publisher, developer, genre, release year, barcode, kind**
+ - **Stats:** totals and value summary
  - **Swagger/OpenAPI** for all endpoints
 
 ## Tech Stack
-  - **.NET 8** (Minimal APIs, Blazor Server)
-  - **EF Core** (SQLite provider)
+  - **.NET 8, Blazor Server**
+  - **EF Core + SQLite**
   - **Swashbuckle** (Swagger)
   - **Simple rate limiting**
 
-## Quick Start (Local)
-  Prereqs: .NET 8 SKD, Visual Studio or 'dotnet' CLI.
+## Quick Start
 
 ```bash
 # Clone
@@ -26,3 +25,7 @@ cd nintendo-collection
 
 #First run creates SQLite db as app.db
 dotnet run --project src/Collection.Api
+```
+
+App launches on https://localhost:****.
+Swagger at /swagger.
