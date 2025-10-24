@@ -14,7 +14,7 @@ namespace Collection.Infrastructure
         {
         }
 
-        public DbSet<Item> Items => Set<Item>();    
+        public DbSet<Item> Items => Set<Item>();
         public DbSet<Platform> Platforms => Set<Platform>();
 
         protected override void OnModelCreating(ModelBuilder b)

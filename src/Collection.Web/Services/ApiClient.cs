@@ -35,12 +35,12 @@ namespace Collection.Web.Services
 
             // enum as string from API
             public string condition { get; set; } = "Good";
-            
+
             public bool hasBox { get; set; }
             public bool hasManual { get; set; }
 
             public decimal? purchasePrice { get; set; }
-            public string? purchaseDate { get; set; } 
+            public string? purchaseDate { get; set; }
             public decimal? estimatedValue { get; set; }
 
             public PlatformDto? platform { get; set; }

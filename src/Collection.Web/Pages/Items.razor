@@ -1,6 +1,7 @@
 ﻿@page "/items"
 <PageTitle>Nintendo Collection</PageTitle>
 @using Collection.Web.Services
+@using Microsoft.AspNetCore.Components.Authorization
 @inject ApiClient Api
 @inject HttpClient Http
 @inject IJSRuntime JS
@@ -27,9 +28,13 @@
 <!-- Toolbar: Primary actions live here -->
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div class="d-flex align-items-center gap-2">
-        <button class="btn btn-success btn-sm" title="Add a new item" @onclick="OpenNewModal">
-            <span class="oi oi-plus me-1"></span>Add Item
-        </button>
+        <AuthorizeView>
+            <Authorized>
+                <button class="btn btn-success btn-sm" title="Add a new item" @onclick="OpenNewModal">
+                    <span class="oi oi-plus me-1"></span>Add Item
+                </button>
+            </Authorized>
+        </AuthorizeView>
 
         <a class="btn btn-outline-secondary btn-sm" title="Download your collection as CSV" href="@Api.ExportUrl()">
             <span class="oi oi-data-transfer-download me-1"></span>Export CSV
@@ -58,6 +63,24 @@
             x
         </button>
     </div>
+
+    <AuthorizeView>
+        <Authorized>
+            <form method="post" action="/logout" class="d-inline">
+                <button type="submit" class="btn btn-outline-secondary btn-sm">Sign out</button>
+            </form>
+        </Authorized>
+        <NotAuthorized>
+            <form method="post" action="/login" class="d-flex align-items-center gap-2">
+                <input type="password"
+                       name="password"
+                       class="form-control form-control-sm"
+                       placeholder="Admin password"
+                       style="max-width:200px" />
+                <button type="submit" class="btn btn-outline-primary btn-sm">Sign in</button>
+            </form>
+        </NotAuthorized>
+    </AuthorizeView>
 </div>
 
 <!-- Stats Summary Card -->
@@ -72,20 +95,32 @@
     </div>
 }
 
+<AuthorizeView>
+    <Authorized>
+        <span class="badge bg-success">Auth OK</span>
+    </Authorized>
+    <NotAuthorized>
+        <span class="badge bg-warning text-dark">Not Authenticated</span>
+    </NotAuthorized>
+</AuthorizeView>
 
 <!-- CSV Utilities -->
 <details class="mb-3">
-    <summary class="fw-semibold">Data (CSV Import)</summary>
-    <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
-        <InputFile OnChange="UploadCsvDryRun" />
-        <button class="btn btn-outline-primary btn-sm" @onclick="ConfirmImport" disabled="@( !canCommitImport )">
-            Commit last upload
-        </button>
-        <span class="text-muted small">@importStatus</span>
-    </div>
-    <div class="form-text mt-1">
-        Upload a CSV to validate first (dry run), then commit to insert items.
-    </div>
+    <AuthorizeView>
+        <Authorized>
+            <summary class="fw-semibold">Data (CSV Import)</summary>
+            <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
+                <InputFile OnChange="UploadCsvDryRun" />
+                <button class="btn btn-outline-primary btn-sm" @onclick="ConfirmImport" disabled="@( !canCommitImport )">
+                    Commit last upload
+                </button>
+                <span class="text-muted small">@importStatus</span>
+            </div>
+            <div class="form-text mt-1">
+                Upload a CSV to validate first (dry run), then commit to insert items.
+            </div>
+        </Authorized>
+    </AuthorizeView>
 </details>
 
 <!-- Table Area (Loading/Empty/Data) -->
@@ -153,8 +188,15 @@ else {
 
             <!-- stop clicks in this cell from reaching the row-->
             <td @onclick:stopPropagation="true">
-                <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => StartEdit(i)">Edit</button>
-                <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(i.id)">Delete</button>
+                <AuthorizeView>
+                    <Authorized>
+                        <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => StartEdit(i)">Edit</button>
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(i.id)">Delete</button>
+                    </Authorized>
+                    <NotAuthorized>
+                                <span class="text-muted small">View Only</span>
+                    </NotAuthorized>
+                </AuthorizeView>
             </td>
           </tr>
         }
@@ -170,6 +212,7 @@ else {
       <button class="btn btn-sm btn-outline-secondary" @onclick="Next" disabled="@(_page >= totalPages)">Next</button>
   </div>
 }
+
 
 <!-- Edit Item Modal -->
 <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
@@ -539,6 +582,8 @@ else {
 
     string FmtMoney(decimal? v) => v is null ? "" : v.Value.ToString("C");
     string FmtDate(DateOnly? d) => d is null ? "" : d.Value.ToString("yyyy-MM-dd");
+
+    string _loginPw = "";
 
     // ---- Toast Helpers ----
     void ToastInfo(string msg) => AddToast(msg, "secondary");
