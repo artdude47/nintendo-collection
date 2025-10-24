@@ -95,19 +95,10 @@
     </div>
 }
 
+<!-- CSV Utilities -->
 <AuthorizeView>
     <Authorized>
-        <span class="badge bg-success">Auth OK</span>
-    </Authorized>
-    <NotAuthorized>
-        <span class="badge bg-warning text-dark">Not Authenticated</span>
-    </NotAuthorized>
-</AuthorizeView>
-
-<!-- CSV Utilities -->
-<details class="mb-3">
-    <AuthorizeView>
-        <Authorized>
+        <details class="mb-3">
             <summary class="fw-semibold">Data (CSV Import)</summary>
             <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
                 <InputFile OnChange="UploadCsvDryRun" />
@@ -119,9 +110,9 @@
             <div class="form-text mt-1">
                 Upload a CSV to validate first (dry run), then commit to insert items.
             </div>
-        </Authorized>
-    </AuthorizeView>
-</details>
+        </details>
+    </Authorized>
+</AuthorizeView>
 
 <!-- Table Area (Loading/Empty/Data) -->
 @if (isLoading){
