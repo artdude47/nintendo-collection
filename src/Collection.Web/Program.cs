@@ -211,7 +211,7 @@ api.MapGet("/items", async (
 
     var total = await query.CountAsync();
 
-    query = (sort ?? "value_desc") switch
+    query = (sort ?? "title_asc") switch
     {
         "title_asc" => query.OrderBy(i => i.Title),
         "title_desc" => query.OrderByDescending(i => i.Title),

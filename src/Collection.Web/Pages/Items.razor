@@ -787,7 +787,7 @@ else {
         selectedPlatform = NullIfEmpty(qs["platform"]);
         selectedCib = NullIfEmpty(qs["isCib"]);       
         search = NullIfEmpty(qs["q"]);
-        sort = NullIfEmpty(qs["sort"]) ?? "value_desc";
+        sort = NullIfEmpty(qs["sort"]) ?? "title_asc";
         selectedKind = NullIfEmpty(qs["kind"]);
         selectedRegion = NullIfEmpty(qs["region"]);
 
@@ -804,7 +804,7 @@ else {
         if (!string.IsNullOrWhiteSpace(selectedPlatform)) dict["platform"] = selectedPlatform;
         if (!string.IsNullOrWhiteSpace(selectedCib)) dict["isCib"] = selectedCib;
         if (!string.IsNullOrWhiteSpace(search)) dict["q"] = search;
-        if (!string.IsNullOrWhiteSpace(sort) && sort != "value_desc") dict["sort"] = sort; 
+        if (!string.IsNullOrWhiteSpace(sort) && sort != "title_asc") dict["sort"] = sort; 
         if (!string.IsNullOrEmpty(selectedKind)) dict["kind"] = selectedKind;
         if (!string.IsNullOrEmpty(selectedRegion)) dict["region"] = selectedRegion;
         if (_page > 1) dict["page"] = _page;
@@ -947,7 +947,7 @@ else {
 
     void OnSortChange(ChangeEventArgs e)
     {
-        sort = e.Value?.ToString() ?? "value_desc";
+        sort = e.Value?.ToString() ?? "title_asc";
         _page = 1;
         _ = DebouncedLoad();
     }
