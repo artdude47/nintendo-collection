@@ -176,6 +176,8 @@ api.MapGet("/health", () => Results.Ok(new { ok = true, time = DateTime.UtcNow }
 api.MapGet("/platforms", async (AppDbContext db) =>
     await db.Platforms.AsNoTracking().OrderBy(p => p.Id).ToListAsync());
 
+api.MapGet("/meta/kinds", () => Results.Ok(Enum.GetNames(typeof(ItemKind))));
+
 //Items: filtering + search + sorting + pagination
 api.MapGet("/items", async (
     AppDbContext db,

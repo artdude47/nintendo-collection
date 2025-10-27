@@ -498,6 +498,9 @@ else {
 
 
 @code {
+
+
+
     // ---- State & DI ------
     ApiClient.ItemDto? editing;
     List<ApiClient.PlatformDto> platforms = new();
@@ -512,7 +515,8 @@ else {
 
     string editStatus = "";
     readonly string[] conditionOptions = new[] { "Poor", "Fair", "Good", "VeryGood", "Excellent", "Mint" };
-    readonly string[] kindOptions = new[] { "Game", "Console", "Controller", "Peripheral", "Accessory", "Other" };
+
+    List<string> kindOptions = new();
     string sort = "title_asc";
     int _page = 1;
     int _pageSize = 50;
@@ -664,6 +668,8 @@ else {
     protected override async Task OnInitializedAsync()
     {
         platforms = await Api.GetPlatformsAsync();
+
+        kindOptions = await Http.GetFromJsonAsync<List<string>>("/api/meta/kinds") ?? new();
         ApplyQueryOnce();
         await Load();
         stats = await Api.GetStatsAsync();
