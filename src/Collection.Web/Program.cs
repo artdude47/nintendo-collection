@@ -189,7 +189,7 @@ api.MapGet("/items", async (
     int pageSize = 50) =>
 {
     page = page < 1 ? 1 : page;
-    pageSize = Math.Clamp(pageSize, 1, 100);
+    pageSize = Math.Clamp(pageSize, 1, 200);
 
     var query = db.Items.Include(i => i.Platform).AsNoTracking();
 
