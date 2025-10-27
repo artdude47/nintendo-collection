@@ -1,5 +1,6 @@
 using Collection.Domain;
 using Collection.Infrastructure;          
+using Microsoft.AspNetCore.Http.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -12,7 +13,6 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server;
-using Microsoft.AspNetCore.Mvc;
 
 
 string[] DesiredPlatforms =
@@ -33,25 +33,9 @@ var isDev = builder.Environment.IsDevelopment();
 
 builder.WebHost.UseStaticWebAssets();
 
-builder.Services.AddProblemDetails(options =>
-{
-    options.CustomizeProblemDetails = ctx =>
-    {
-        ctx.ProblemDetails.Status ??= ctx.HttpContext.Response.StatusCode;
-
-        ctx.ProblemDetails.Extensions["traceId"] = ctx.ProblemDetails;
-
-        if (ctx.HttpContext.Request.Headers.TryGetValue("X-TraceId", out var traceId))
-        {
-            ctx.ProblemDetails.Extensions["traceId"] = traceId.ToString();
-        }
-    };
-});
-
 // --- Persistence: SQLite ---
 var cs = builder.Configuration.GetConnectionString("Sqlite") ?? "Data Source=app.db";
 builder.Services.AddDbContext<AppDbContext>(opt => opt.UseSqlite(cs));
-
 
 // --- Safety: simple per-IP rate limiter (prevents abuse on free tier) ---
 builder.Services.AddRateLimiter(_ => _
@@ -135,8 +119,6 @@ else
 {
     app.UseHsts();
 }
-
-app.UseExceptionHandler();
 
 app.UseHttpsRedirection();
 
@@ -229,7 +211,7 @@ api.MapGet("/items", async (
 
     var total = await query.CountAsync();
 
-    query = (sort ?? "title_asc") switch
+    query = (sort ?? "value_desc") switch
     {
         "title_asc" => query.OrderBy(i => i.Title),
         "title_desc" => query.OrderByDescending(i => i.Title),

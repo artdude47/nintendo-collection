@@ -1,6 +1,7 @@
 ﻿@page "/items"
 <PageTitle>Nintendo Collection</PageTitle>
 @using Collection.Web.Services
+@using Microsoft.AspNetCore.Components.Authorization
 @inject ApiClient Api
 @inject HttpClient Http
 @inject IJSRuntime JS
@@ -27,9 +28,13 @@
 <!-- Toolbar: Primary actions live here -->
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div class="d-flex align-items-center gap-2">
-        <button class="btn btn-success btn-sm" title="Add a new item" @onclick="OpenNewModal">
-            <span class="oi oi-plus me-1"></span>Add Item
-        </button>
+        <AuthorizeView>
+            <Authorized>
+                <button class="btn btn-success btn-sm" title="Add a new item" @onclick="OpenNewModal">
+                    <span class="oi oi-plus me-1"></span>Add Item
+                </button>
+            </Authorized>
+        </AuthorizeView>
 
         <a class="btn btn-outline-secondary btn-sm" title="Download your collection as CSV" href="@Api.ExportUrl()">
             <span class="oi oi-data-transfer-download me-1"></span>Export CSV
@@ -58,7 +63,100 @@
             x
         </button>
     </div>
+
+    <div class="d-flex align-items-center gap-2">
+        <label class="form-label mb-0 small text-muted">Kind:</label>
+        <select class="form-select form-select-sm w-auto" @onchange="OnKindChange" value="@selectedKind">
+            <option value="">(Any)</option>
+            @foreach (var k in kindOptions)
+            {
+                <option value="@k">@k</option>
+            }
+        </select>
+
+        <label class="form-label mb-0 small text-muted">Region:</label>
+        <select class="form-select form-select-sm w-auto" @onchange="OnRegionChange" value="@selectedRegion">
+            <option value="">(Any)</option>
+            @foreach (var r in regionOptions)
+            {
+                <option value="@r">@r</option>
+            }
+        </select>
+    </div>
+
+    <AuthorizeView>
+        <Authorized>
+            <form method="post" action="/logout" class="d-inline">
+                <button type="submit" class="btn btn-outline-secondary btn-sm">Sign out</button>
+            </form>
+        </Authorized>
+        <NotAuthorized>
+            <button type="button"
+                class="btn btn-outline-primary btn-sm"
+                title="Sign In"
+                @onclick="OpenLoginModal">
+                Sign In
+            </button>
+        </NotAuthorized>
+    </AuthorizeView>
 </div>
+
+@if (!string.IsNullOrWhiteSpace(selectedPlatform) ||
+    !string.IsNullOrWhiteSpace(selectedCib) ||
+    !string.IsNullOrWhiteSpace(selectedKind) ||
+    !string.IsNullOrWhiteSpace(selectedRegion) ||
+    !string.IsNullOrWhiteSpace(search))
+{
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+        <span class="small text-muted me-1">Filters:</span>
+
+        @if (!string.IsNullOrWhiteSpace(selectedPlatform))
+        {
+            <span class="badge rounded-pill text-bg-secondary">
+                Platform: @selectedPlatform
+                <button type="button" class="btn-close btn-close-white btn-close-sm ms-1"
+                        aria-label="Clear platform" @onclick="@(() => { selectedPlatform = null; _ = DebouncedLoad(0); })"></button>
+            </span>
+        }
+        @if (!string.IsNullOrWhiteSpace(selectedCib))
+        {
+            <span class="badge rounded-pill text-bg-secondary">
+                CIB: @(selectedCib == "true" ? "Yes" : "No")
+                <button type="button" class="btn-close btn-close-white btn-close-sm ms-1"
+                        aria-label="Clear CIB" @onclick="@(() => { selectedCib = null; _ = DebouncedLoad(0); })"></button>
+            </span>
+        }
+        @if (!string.IsNullOrWhiteSpace(selectedKind))
+        {
+            <span class="badge rounded-pill text-bg-secondary">
+                Kind: @selectedKind
+                <button type="button" class="btn-close btn-close-white btn-close-sm ms-1"
+                        aria-label="Clear kind" @onclick="@(() => { selectedKind = null; _ = DebouncedLoad(0); })"></button>
+            </span>
+        }
+        @if (!string.IsNullOrWhiteSpace(selectedRegion))
+        {
+            <span class="badge rounded-pill text-bg-secondary">
+                Region: @selectedRegion
+                <button type="button" class="btn-close btn-close-white btn-close-sm ms-1"
+                        aria-label="Clear region" @onclick="@(() => { selectedRegion = null; _ = DebouncedLoad(0); })"></button>
+            </span>
+        }
+        @if (!string.IsNullOrWhiteSpace(search))
+        {
+            <span class="badge rounded-pill text-bg-secondary">
+                Search: “@search”
+                <button type="button" class="btn-close btn-close-white btn-close-sm ms-1"
+                        aria-label="Clear search" @onclick="@(() => { search = ""; _ = DebouncedLoad(0); })"></button>
+            </span>
+        }
+
+        <button class="btn btn-link btn-sm text-decoration-none"
+                @onclick="@(() => { selectedPlatform = null; selectedCib = null; selectedKind = null; selectedRegion = null; search = ""; _page = 1; _ = DebouncedLoad(0); })">
+            Clear all
+        </button>
+    </div>
+}
 
 <!-- Stats Summary Card -->
 @if (stats is not null)
@@ -72,21 +170,24 @@
     </div>
 }
 
-
 <!-- CSV Utilities -->
-<details class="mb-3">
-    <summary class="fw-semibold">Data (CSV Import)</summary>
-    <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
-        <InputFile OnChange="UploadCsvDryRun" />
-        <button class="btn btn-outline-primary btn-sm" @onclick="ConfirmImport" disabled="@( !canCommitImport )">
-            Commit last upload
-        </button>
-        <span class="text-muted small">@importStatus</span>
-    </div>
-    <div class="form-text mt-1">
-        Upload a CSV to validate first (dry run), then commit to insert items.
-    </div>
-</details>
+<AuthorizeView>
+    <Authorized>
+        <details class="mb-3">
+            <summary class="fw-semibold">Data (CSV Import)</summary>
+            <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
+                <InputFile OnChange="UploadCsvDryRun" />
+                <button class="btn btn-outline-primary btn-sm" @onclick="ConfirmImport" disabled="@( !canCommitImport )">
+                    Commit last upload
+                </button>
+                <span class="text-muted small">@importStatus</span>
+            </div>
+            <div class="form-text mt-1">
+                Upload a CSV to validate first (dry run), then commit to insert items.
+            </div>
+        </details>
+    </Authorized>
+</AuthorizeView>
 
 <!-- Table Area (Loading/Empty/Data) -->
 @if (isLoading){
@@ -153,8 +254,15 @@ else {
 
             <!-- stop clicks in this cell from reaching the row-->
             <td @onclick:stopPropagation="true">
-                <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => StartEdit(i)">Edit</button>
-                <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(i.id)">Delete</button>
+                <AuthorizeView>
+                    <Authorized>
+                        <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => StartEdit(i)">Edit</button>
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(i.id)">Delete</button>
+                    </Authorized>
+                    <NotAuthorized>
+                                <span class="text-muted small">View Only</span>
+                    </NotAuthorized>
+                </AuthorizeView>
             </td>
           </tr>
         }
@@ -170,6 +278,7 @@ else {
       <button class="btn btn-sm btn-outline-secondary" @onclick="Next" disabled="@(_page >= totalPages)">Next</button>
   </div>
 }
+
 
 <!-- Edit Item Modal -->
 <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
@@ -425,7 +534,6 @@ else {
     </div>
 </div>
 
-
 <!-- Item Detail Modal -->
 <div class="modal fade" id="detailsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -496,6 +604,50 @@ else {
     </div>
 </div>
 
+<!-- Login Modal -->
+<div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Admin Sign In</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" @onclick="CloseLoginModal"></button>
+            </div>
+
+            <div class="modal-body">
+                <form id="loginForm" method="post" action="/login">
+                    <div class="mb-3">
+                        <label class="form-label" for="login-password">Password</label>
+                        <input id="login-password"
+                               name="Password"                   
+                        type="@(_showPw ? "text" : "password")"
+                        class="form-control"
+                        @bind="_loginPw" @bind:event="oninput"
+                        placeholder="Admin password"
+                        autocomplete="current-password" />
+                        <div class="form-text mt-1">
+                            <input class="form-check-input me-2" type="checkbox" id="showPw" @bind="_showPw" />
+                            <label class="form-check-label" for="showPw">Show password</label>
+                        </div>
+                    </div>
+                </form>
+
+                @if (!string.IsNullOrEmpty(_loginError))
+                {
+                    <div class="alert alert-danger py-2 mb-0">@_loginError</div>
+                }
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal" @onclick="CloseLoginModal">Cancel</button>
+
+                <button type="submit" form="loginForm" class="btn btn-primary" disabled="@_loginBusy">
+                    @(_loginBusy ? "Signing in…" : "Sign in")
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 @code {
 
@@ -543,6 +695,16 @@ else {
 
     string FmtMoney(decimal? v) => v is null ? "" : v.Value.ToString("C");
     string FmtDate(DateOnly? d) => d is null ? "" : d.Value.ToString("yyyy-MM-dd");
+
+    string _loginPw = "";
+    bool _showPw = false;
+    bool _loginBusy = false;
+    string _loginError = "";
+
+    string? selectedKind;
+    string? selectedRegion;
+
+    readonly string[] regionOptions = new[] { "NTSC-U", "NTSC-J", "PAL", "Other" };
 
     // ---- Toast Helpers ----
     void ToastInfo(string msg) => AddToast(msg, "secondary");
@@ -625,7 +787,9 @@ else {
         selectedPlatform = NullIfEmpty(qs["platform"]);
         selectedCib = NullIfEmpty(qs["isCib"]);       
         search = NullIfEmpty(qs["q"]);
-        sort = NullIfEmpty(qs["sort"]) ?? "title_asc";
+        sort = NullIfEmpty(qs["sort"]) ?? "value_desc";
+        selectedKind = NullIfEmpty(qs["kind"]);
+        selectedRegion = NullIfEmpty(qs["region"]);
 
 
         if (int.TryParse(qs["page"], out var p) && p > 0) _page = p;
@@ -640,7 +804,9 @@ else {
         if (!string.IsNullOrWhiteSpace(selectedPlatform)) dict["platform"] = selectedPlatform;
         if (!string.IsNullOrWhiteSpace(selectedCib)) dict["isCib"] = selectedCib;
         if (!string.IsNullOrWhiteSpace(search)) dict["q"] = search;
-        if (!string.IsNullOrWhiteSpace(sort) && sort != "title_asc") dict["sort"] = sort; 
+        if (!string.IsNullOrWhiteSpace(sort) && sort != "value_desc") dict["sort"] = sort; 
+        if (!string.IsNullOrEmpty(selectedKind)) dict["kind"] = selectedKind;
+        if (!string.IsNullOrEmpty(selectedRegion)) dict["region"] = selectedRegion;
         if (_page > 1) dict["page"] = _page;
         if (_pageSize != 50) dict["pageSize"] = _pageSize; 
 
@@ -683,7 +849,7 @@ else {
         try
         {
             bool? isCib = string.IsNullOrEmpty(selectedCib) ? null : selectedCib == "true" ? true : false;
-            page = await Api.GetItemsAsync(selectedPlatform, isCib, _page, _pageSize, search, sort);
+            page = await Api.GetItemsAsync(selectedPlatform, isCib, _page, _pageSize, search, sort, selectedKind, selectedRegion);
             stats = await Api.GetStatsAsync();
 
             UpdateQueryUrl();
@@ -781,7 +947,7 @@ else {
 
     void OnSortChange(ChangeEventArgs e)
     {
-        sort = e.Value?.ToString() ?? "title_asc";
+        sort = e.Value?.ToString() ?? "value_desc";
         _page = 1;
         _ = DebouncedLoad();
     }
@@ -869,6 +1035,9 @@ else {
             return;
         }
 
+        static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s;
+        static int? NullIfZero(int? n) => (n is null || n == 0) ? null : n;
+
         var payload = new ApiClient.ItemDto
         {
             id = editing.id,
@@ -894,27 +1063,33 @@ else {
         {
             id = payload.id,
             title = payload.title,
-            region = payload.region,
+            region = NullIfEmpty(payload.region),
             condition = payload.condition,
+
             hasBox = payload.hasBox,
             hasManual = payload.hasManual,
+
             purchasePrice = payload.purchasePrice,
-            purchaseDate = payload.purchaseDate,
+            purchaseDate = NullIfEmpty(payload.purchaseDate),
             estimatedValue = payload.estimatedValue,
-            notes = payload.notes,
-            publisher = payload.publisher,
-            developer = payload.developer,
-            genre = payload.genre,
-            releaseYear = payload.releaseYear,
-            barcode = payload.barcode,
-            kind = payload.kind,
+
+            notes = NullIfEmpty(payload.notes),
+            publisher = NullIfEmpty(payload.publisher),
+            developer = NullIfEmpty(payload.developer),
+            genre = NullIfEmpty(payload.genre),
+            barcode = NullIfEmpty(payload.barcode),
+
+            releaseYear = NullIfZero(payload.releaseYear),
+            kind = NullIfEmpty(payload.kind),
+
             platformId = plat.id
         };
 
         var ok = await Http.PutAsJsonAsync($"/api/items/{payload.id}", body);
         if (!ok.IsSuccessStatusCode)
         {
-            editStatus = $"Save failed: {(int)ok.StatusCode}";
+            var details = await ok.Content.ReadAsStringAsync();
+            editStatus = $"Save failed: {(int)ok.StatusCode} - {details}";
             return;
         }
 
@@ -997,6 +1172,70 @@ else {
         StateHasChanged();
     }
 
+    //---- Login ----
+    async Task OpenLoginModal()
+    {
+        _loginPw = "";
+        _loginError = "";
+        _showPw = false;
+        await JS.InvokeVoidAsync("modal.show", "loginModal");
+    }
+
+    async Task CloseLoginModal()
+    {
+        _loginPw = "";
+        _loginError = "";
+        await JS.InvokeVoidAsync("modal.hide", "loginModal");
+    }
+
+    public sealed class LoginResult
+    {
+        public bool ok { get; set; }
+        public int status { get; set; }
+    }
+
+    async Task SubmitLogin()
+    {
+        if (_loginBusy) return;
+        _loginBusy = true;
+        _loginError = "";
+        StateHasChanged();
+
+        try
+        {
+            var result = await JS.InvokeAsync<LoginResult>("nc.postLogin", _loginPw);
+
+            if (result.ok)
+            {
+                await JS.InvokeVoidAsync("modal.hide", "loginModal");
+                Nav.NavigateTo(Nav.Uri, forceLoad: true);
+            }
+            else
+            {
+                _loginError = result.status == 401 ? "Incorrect password. Please try again." : $"Error: {result.status}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _loginError = $"Login failed: {ex.Message}";
+        }
+        finally
+        {
+            _loginBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    async Task SubmitLoginForm()
+    {
+        if (_loginBusy) return;
+        _loginBusy = true;
+        _loginError = "";
+        StateHasChanged();
+
+        await JS.InvokeVoidAsync("eval", "document.getElementById('loginForm').submit();"); 
+    }
+
     //---- Item Details ----
     async Task OpenDetails(int id)
     {
@@ -1032,6 +1271,20 @@ else {
     {
         var v = e.Value?.ToString();
         NewItem!.purchaseDate = string.IsNullOrWhiteSpace(v) ? null : v;
+    }
+
+    void OnKindChange(ChangeEventArgs e)
+    {
+        selectedKind = e.Value?.ToString();
+        _page = 1;
+        _ = DebouncedLoad();
+    }
+
+    void OnRegionChange(ChangeEventArgs e)
+    {
+        selectedRegion = e.Value?.ToString();
+        _page = 1;
+        _ = DebouncedLoad();
     }
 
     async Task<bool> JSConfirm(string message) => await JS.InvokeAsync<bool>("confirm", message);
