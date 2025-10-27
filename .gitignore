@@ -25,7 +25,9 @@ project.lock.json
 Thumbs.db
 
 # SQLite local db (dev/demo)
-app.db
+*.db
+*.db-shm
+*.db-wal
 
 # Node (if you add a React frontend later)
 node_modules/
