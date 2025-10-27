@@ -75,7 +75,7 @@ namespace Collection.Web.Services
         public async Task<List<PlatformDto>> GetPlatformsAsync() => await _http.GetFromJsonAsync<List<PlatformDto>>("/api/platforms") ?? new();
 
         public async Task<Page<ItemDto>> GetItemsAsync(
-            string? platform, bool? isCib, int page, int pageSize, string? q = null, string? sort = null, string? kind = null, string? region = null)
+            string? platform, bool? isCib, int page, int pageSize, string? q = null, string? sort = null, string? kind = null, string? region = null, string? genre = null)
         {
             var qs = new List<string>();
             if (!string.IsNullOrWhiteSpace(platform)) qs.Add($"platform={Uri.EscapeDataString(platform)}");
@@ -84,6 +84,7 @@ namespace Collection.Web.Services
             if (!string.IsNullOrWhiteSpace(sort)) qs.Add($"sort={Uri.EscapeDataString(sort)}");
             if (!string.IsNullOrWhiteSpace(kind)) qs.Add($"kind={Uri.EscapeDataString(kind)}");
             if (!string.IsNullOrWhiteSpace(region)) qs.Add($"region={Uri.EscapeDataString(region)}");
+            if (!string.IsNullOrWhiteSpace(genre)) qs.Add($"genre={Uri.EscapeDataString(genre)}");
 
             qs.Add($"page={page}");
             qs.Add($"pageSize={pageSize}");

@@ -111,6 +111,7 @@
     !string.IsNullOrWhiteSpace(selectedCib) ||
     !string.IsNullOrWhiteSpace(selectedKind) ||
     !string.IsNullOrWhiteSpace(selectedRegion) ||
+    !string.IsNullOrWhiteSpace(selectedGenre) ||
     !string.IsNullOrWhiteSpace(search))
 {
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
@@ -156,9 +157,17 @@
                         aria-label="Clear search" @onclick="@(() => { search = ""; _ = DebouncedLoad(0); })"></button>
             </span>
         }
+        @if (!string.IsNullOrWhiteSpace(selectedGenre))
+        {
+            <span class="badge rounded-pill text-bg-secondary">
+                Genre: @selectedGenre
+                <button type="button" class="btn-close btn-close-white btn-close-sm ms-1"
+                        aria-label="Clear genre" @onclick="@(() => { selectedGenre = null; _ = DebouncedLoad(0); })"></button>
+            </span>
+        }
 
         <button class="btn btn-link btn-sm text-decoration-none"
-                @onclick="@(() => { selectedPlatform = null; selectedCib = null; selectedKind = null; selectedRegion = null; search = ""; _page = 1; _ = DebouncedLoad(0); })">
+                @onclick="@(() => { selectedPlatform = null; selectedCib = null; selectedKind = null; selectedRegion = null; selectedGenre = null; search = ""; _page = 1; _ = DebouncedLoad(0); })">
             Clear all
         </button>
     </div>
@@ -817,6 +826,7 @@ else {
         sort = NullIfEmpty(qs["sort"]) ?? "title_asc";
         selectedKind = NullIfEmpty(qs["kind"]);
         selectedRegion = NullIfEmpty(qs["region"]);
+        selectedGenre = NullIfEmpty(qs["genre"]);
 
 
         if (int.TryParse(qs["page"], out var p) && p > 0) _page = p;
@@ -834,6 +844,7 @@ else {
         if (!string.IsNullOrWhiteSpace(sort) && sort != "title_asc") dict["sort"] = sort; 
         if (!string.IsNullOrEmpty(selectedKind)) dict["kind"] = selectedKind;
         if (!string.IsNullOrEmpty(selectedRegion)) dict["region"] = selectedRegion;
+        if (!string.IsNullOrEmpty(selectedGenre)) dict["genre"] = selectedGenre;
         if (_page > 1) dict["page"] = _page;
         if (_pageSize != 50) dict["pageSize"] = _pageSize; 
 
@@ -876,7 +887,7 @@ else {
         try
         {
             bool? isCib = string.IsNullOrEmpty(selectedCib) ? null : selectedCib == "true" ? true : false;
-            page = await Api.GetItemsAsync(selectedPlatform, isCib, _page, _pageSize, search, sort, selectedKind, selectedRegion);
+            page = await Api.GetItemsAsync(selectedPlatform, isCib, _page, _pageSize, search, sort, selectedKind, selectedRegion, selectedGenre);
             stats = await Api.GetStatsAsync();
 
             UpdateQueryUrl();
