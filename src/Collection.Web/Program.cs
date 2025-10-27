@@ -57,11 +57,22 @@ builder.Services.AddSwaggerGen(c =>
     c.MapType<DateOnly?>(() => new OpenApiSchema { Type = "string", Format = "date" });
 });
 
+builder.Services.AddHttpContextAccessor();
+
+// One HttpClient per circuit/request (works in Blazor Server)
 builder.Services.AddScoped(sp =>
 {
     var nav = sp.GetRequiredService<NavigationManager>();
-    return new HttpClient { BaseAddress = new Uri(nav.BaseUri) };
+
+    // Forward the inbound Cookie header (contains "nc-auth")
+    var handler = new ForwardAuthCookiesHandler(sp.GetRequiredService<IHttpContextAccessor>())
+    {
+        InnerHandler = new HttpClientHandler()
+    };
+
+    return new HttpClient(handler) { BaseAddress = new Uri(nav.BaseUri) };
 });
+
 builder.Services.AddScoped<Collection.Web.Services.ApiClient>();
 
 builder.Services.AddRazorPages();
@@ -155,6 +166,7 @@ api.MapGet("/items", async (
     string? q,
     string? sort,
     string? kind,
+    string? region,
     int page = 1,
     int pageSize = 50) =>
 {
@@ -170,6 +182,11 @@ api.MapGet("/items", async (
     if (!string.IsNullOrWhiteSpace(kind) && Enum.TryParse<ItemKind>(kind.Trim(), true, out var kindValue))
     {
         query = query.Where(i => i.Kind == kindValue);
+    }
+
+    if (!string.IsNullOrWhiteSpace(region))
+    {
+        query = query.Where(i => i.Region == region);
     }
 
     if (!string.IsNullOrWhiteSpace(q))
@@ -388,6 +405,19 @@ app.MapPost("/logout", async (HttpContext ctx) =>
     return Results.Redirect(string.IsNullOrWhiteSpace(returnUrl) ? "/" : returnUrl);
 });
 
+app.MapPost("/login.ajax", async (HttpContext ctx, [FromForm] LoginDto dto) =>
+{
+    if (string.IsNullOrEmpty(dto?.Password) || dto.Password != adminPassword)
+        return Results.Unauthorized();
+
+    var claims = new[] { new Claim(ClaimTypes.Name, "admin") };
+    var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+    var principal = new ClaimsPrincipal(identity);
+
+    await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
+    return Results.Ok(new { ok = true });
+}).DisableAntiforgery();
+
 api.MapPost("/import", async (
     IFormFile file,
     bool dryRun,
@@ -535,4 +565,25 @@ app.MapFallbackToPage("/_Host");
 app.Run();
 
 public record LoginDto(string Password);
+
+public sealed class ForwardAuthCookiesHandler : DelegatingHandler
+{
+    private readonly IHttpContextAccessor _http;
+
+    public ForwardAuthCookiesHandler(IHttpContextAccessor http) => _http = http;
+
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var ctx = _http.HttpContext;
+        if (ctx != null && ctx.Request.Headers.TryGetValue("Cookie", out var cookie))
+        {
+            // ensure not duplicated
+            if (!request.Headers.Contains("Cookie"))
+                request.Headers.TryAddWithoutValidation("Cookie", cookie.ToString());
+        }
+        return base.SendAsync(request, cancellationToken);
+    }
+}
+
 
