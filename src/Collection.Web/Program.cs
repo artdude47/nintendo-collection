@@ -1,13 +1,19 @@
 using Collection.Domain;
-using Collection.Infrastructure;          // our DbContext lives here
+using Collection.Infrastructure;          
 using Microsoft.AspNetCore.Http.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;  // (cheap-mode safety)
-using Microsoft.EntityFrameworkCore;      // UseSqlite, DbContext
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;      
 using Microsoft.OpenApi.Models;
 using System.Globalization;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Server;
+
 
 string[] DesiredPlatforms =
 {
@@ -23,6 +29,7 @@ string[] DesiredPlatforms =
 };
 
 var builder = WebApplication.CreateBuilder(args);
+var isDev = builder.Environment.IsDevelopment();
 
 builder.WebHost.UseStaticWebAssets();
 
@@ -39,6 +46,9 @@ builder.Services.AddRateLimiter(_ => _
         o.QueueLimit = 0;
     }));
 
+builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
+
+
 // --- Swagger so you can test endpoints easily ---
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -47,11 +57,22 @@ builder.Services.AddSwaggerGen(c =>
     c.MapType<DateOnly?>(() => new OpenApiSchema { Type = "string", Format = "date" });
 });
 
+builder.Services.AddHttpContextAccessor();
+
+// One HttpClient per circuit/request (works in Blazor Server)
 builder.Services.AddScoped(sp =>
 {
     var nav = sp.GetRequiredService<NavigationManager>();
-    return new HttpClient { BaseAddress = new Uri(nav.BaseUri) };
+
+    // Forward the inbound Cookie header (contains "nc-auth")
+    var handler = new ForwardAuthCookiesHandler(sp.GetRequiredService<IHttpContextAccessor>())
+    {
+        InnerHandler = new HttpClientHandler()
+    };
+
+    return new HttpClient(handler) { BaseAddress = new Uri(nav.BaseUri) };
 });
+
 builder.Services.AddScoped<Collection.Web.Services.ApiClient>();
 
 builder.Services.AddRazorPages();
@@ -62,6 +83,29 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 
+builder.Services
+    .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(o =>
+    {
+        o.Cookie.Name = "nc-auth";
+        o.Cookie.HttpOnly = true;
+        o.Cookie.SameSite = SameSiteMode.Lax;                 // same-site POSTs are fine
+        o.Cookie.SecurePolicy = isDev
+            ? CookieSecurePolicy.SameAsRequest                 // dev: works over http/https
+            : CookieSecurePolicy.Always;                       // prod: HTTPS only
+        o.SlidingExpiration = true;
+        o.ExpireTimeSpan = TimeSpan.FromDays(7);
+        o.LoginPath = "/";                                    // we use inline login box
+        o.AccessDeniedPath = "/";
+    });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("CanEdit", p => p.RequireAuthenticatedUser());
+});
+
+var adminPassword = builder.Configuration["Admin:Password"] ?? "changeme";
+
 var app = builder.Build();
 
 app.UseRateLimiter();
@@ -71,12 +115,24 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
+
+app.UseStaticFiles();
+app.UseRouting();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
-    
+
     var existing = new HashSet<string>(
         db.Platforms.AsNoTracking().Select(p => p.Name),
         StringComparer.OrdinalIgnoreCase);
@@ -110,6 +166,7 @@ api.MapGet("/items", async (
     string? q,
     string? sort,
     string? kind,
+    string? region,
     int page = 1,
     int pageSize = 50) =>
 {
@@ -126,7 +183,12 @@ api.MapGet("/items", async (
     {
         query = query.Where(i => i.Kind == kindValue);
     }
-    
+
+    if (!string.IsNullOrWhiteSpace(region))
+    {
+        query = query.Where(i => i.Region == region);
+    }
+
     if (!string.IsNullOrWhiteSpace(q))
     {
         var s = q.Trim();
@@ -134,7 +196,7 @@ api.MapGet("/items", async (
 
         int? year = int.TryParse(s, out var yr) ? yr : null;
 
-        query = query.Where(i => 
+        query = query.Where(i =>
             EF.Functions.Like(i.Title, pattern) ||
             EF.Functions.Like(i.Notes ?? "", pattern) ||
             EF.Functions.Like(i.Platform!.Name, pattern) ||
@@ -185,16 +247,6 @@ api.MapGet("/items/{id:int}", async (int id, AppDbContext db) =>
     return item is null ? Results.NotFound() : Results.Ok(item);
 });
 
-// Create Item: minimal validation
-api.MapPost("/items", async (AppDbContext db, Collection.Domain.Item item) =>
-{
-    if (string.IsNullOrWhiteSpace(item.Title)) return Results.BadRequest("Title required");
-    item.CreatedAt = item.UpdatedAt = DateTime.UtcNow;
-    db.Items.Add(item);
-    await db.SaveChangesAsync();
-    return Results.Created($"/api/items/{item.Id}", item);
-});
-
 api.MapGet("/export.csv", async (AppDbContext db) =>
 {
     var items = await db.Items.Include(i => i.Platform).AsNoTracking().ToListAsync();
@@ -236,48 +288,6 @@ api.MapGet("/export.csv", async (AppDbContext db) =>
     return Results.File(bytes, "text/csv", "collection.csv");
 });
 
-//UPDATE item
-api.MapPut("/items/{id:int}", async (int id, AppDbContext db, Item dto) =>
-{
-    var entity = await db.Items.FindAsync(id);
-    if (entity is null) return Results.NotFound();
-    if (string.IsNullOrWhiteSpace(dto.Title)) return Results.BadRequest("Title required");
-
-    entity.Title = dto.Title.Trim();
-    entity.PlatformId = dto.PlatformId;
-    entity.Region = string.IsNullOrWhiteSpace(dto.Region) ? "NTSC-U" : dto.Region.Trim();
-    entity.Condition = dto.Condition;
-    entity.HasBox = dto.HasBox;
-    entity.HasManual = dto.HasManual;
-    entity.PurchasePrice = dto.PurchasePrice;
-    entity.PurchaseDate = dto.PurchaseDate;
-    entity.EstimatedValue = dto.EstimatedValue;
-    entity.Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes.Trim();
-
-    // NEW fields
-    entity.Publisher = string.IsNullOrWhiteSpace(dto.Publisher) ? null : dto.Publisher.Trim();
-    entity.Developer = string.IsNullOrWhiteSpace(dto.Developer) ? null : dto.Developer.Trim();
-    entity.Genre = string.IsNullOrWhiteSpace(dto.Genre) ? null : dto.Genre.Trim();
-    entity.ReleaseYear = dto.ReleaseYear;
-    entity.Barcode = string.IsNullOrWhiteSpace(dto.Barcode) ? null : dto.Barcode.Trim();
-    entity.Kind = dto.Kind;
-
-    entity.UpdatedAt = DateTime.UtcNow;
-
-    await db.SaveChangesAsync();
-    return Results.NoContent();
-});
-
-// DELETE item
-api.MapDelete("/items/{id:int}", async (int id, AppDbContext db) =>
-{
-    var entity = await db.Items.FindAsync(id);
-    if (entity is null) return Results.NotFound();
-    db.Items.Remove(entity);
-    await db.SaveChangesAsync();
-    return Results.NoContent();
-});
-
 api.MapGet("/stats", async (AppDbContext db) =>
 {
     //Overall stats
@@ -311,6 +321,102 @@ api.MapGet("/stats", async (AppDbContext db) =>
         byPlatform
     });
 });
+
+// Create Item: minimal validation
+api.MapPost("/items", async (AppDbContext db, Collection.Domain.Item item) =>
+{
+    if (string.IsNullOrWhiteSpace(item.Title)) return Results.BadRequest("Title required");
+    item.CreatedAt = item.UpdatedAt = DateTime.UtcNow;
+    db.Items.Add(item);
+    await db.SaveChangesAsync();
+    return Results.Created($"/api/items/{item.Id}", item);
+}).RequireAuthorization("CanEdit");
+
+//UPDATE item
+api.MapPut("/items/{id:int}", async (int id, AppDbContext db, Item dto) =>
+{
+    var entity = await db.Items.FindAsync(id);
+    if (entity is null) return Results.NotFound();
+    if (string.IsNullOrWhiteSpace(dto.Title)) return Results.BadRequest("Title required");
+
+    entity.Title = dto.Title.Trim();
+    entity.PlatformId = dto.PlatformId;
+    entity.Region = string.IsNullOrWhiteSpace(dto.Region) ? "NTSC-U" : dto.Region.Trim();
+    entity.Condition = dto.Condition;
+    entity.HasBox = dto.HasBox;
+    entity.HasManual = dto.HasManual;
+    entity.PurchasePrice = dto.PurchasePrice;
+    entity.PurchaseDate = dto.PurchaseDate;
+    entity.EstimatedValue = dto.EstimatedValue;
+    entity.Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes.Trim();
+
+    // NEW fields
+    entity.Publisher = string.IsNullOrWhiteSpace(dto.Publisher) ? null : dto.Publisher.Trim();
+    entity.Developer = string.IsNullOrWhiteSpace(dto.Developer) ? null : dto.Developer.Trim();
+    entity.Genre = string.IsNullOrWhiteSpace(dto.Genre) ? null : dto.Genre.Trim();
+    entity.ReleaseYear = dto.ReleaseYear;
+    entity.Barcode = string.IsNullOrWhiteSpace(dto.Barcode) ? null : dto.Barcode.Trim();
+    entity.Kind = dto.Kind;
+
+    entity.UpdatedAt = DateTime.UtcNow;
+
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+}).RequireAuthorization("CanEdit");
+
+// DELETE item
+api.MapDelete("/items/{id:int}", async (int id, AppDbContext db) =>
+{
+    var entity = await db.Items.FindAsync(id);
+    if (entity is null) return Results.NotFound();
+    db.Items.Remove(entity);
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+}).RequireAuthorization("CanEdit");
+
+app.MapGet("/whoami", (ClaimsPrincipal user) =>
+    Results.Ok(new
+    {
+        isAuth = user.Identity?.IsAuthenticated ?? false,
+        name = user.Identity?.Name,
+        claims = user.Claims.Select(c => new { c.Type, c.Value })
+    }));
+
+app.MapPost("/login", async (HttpContext ctx, [FromForm] LoginDto dto) =>
+{
+    if (string.IsNullOrEmpty(dto?.Password) || dto.Password != adminPassword)
+        return Results.Unauthorized();
+
+    var claims = new[] { new Claim(ClaimTypes.Name, "admin") };
+    var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+    var principal = new ClaimsPrincipal(identity);
+
+    await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
+
+    // Redirect back to where the user was (or home)
+    var returnUrl = ctx.Request.Headers.Referer.ToString();
+    return Results.Redirect(string.IsNullOrWhiteSpace(returnUrl) ? "/" : returnUrl);
+}).DisableAntiforgery();
+
+app.MapPost("/logout", async (HttpContext ctx) =>
+{
+    await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    var returnUrl = ctx.Request.Headers.Referer.ToString();
+    return Results.Redirect(string.IsNullOrWhiteSpace(returnUrl) ? "/" : returnUrl);
+});
+
+app.MapPost("/login.ajax", async (HttpContext ctx, [FromForm] LoginDto dto) =>
+{
+    if (string.IsNullOrEmpty(dto?.Password) || dto.Password != adminPassword)
+        return Results.Unauthorized();
+
+    var claims = new[] { new Claim(ClaimTypes.Name, "admin") };
+    var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+    var principal = new ClaimsPrincipal(identity);
+
+    await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
+    return Results.Ok(new { ok = true });
+}).DisableAntiforgery();
 
 api.MapPost("/import", async (
     IFormFile file,
@@ -410,8 +516,8 @@ api.MapPost("/import", async (
     if (!dryRun) await db.SaveChangesAsync();
     return Results.Ok(report);
 
-    // --- helpers ---
-    static string? Get(string[] a, int i) => i < a.Length ? a[i] : null;
+        // --- helpers ---
+        static string? Get(string[] a, int i) => i < a.Length ? a[i] : null;
     static bool ParseBool(string? s) => s is not null && s.Trim().Equals("true", StringComparison.OrdinalIgnoreCase);
     static decimal? ParseDecimal(string? s, List<string> errors, string name)
     {
@@ -451,9 +557,33 @@ api.MapPost("/import", async (
         result.Add(cur.ToString());
         return result.ToArray();
     }
-}).Accepts<IFormFile>("multipart/form-data").Produces<Collection.Api.ImportReport>(StatusCodes.Status200OK).Produces(StatusCodes.Status400BadRequest).DisableAntiforgery();
+}).Accepts<IFormFile>("multipart/form-data").Produces<Collection.Api.ImportReport>(StatusCodes.Status200OK).Produces(StatusCodes.Status400BadRequest).DisableAntiforgery().RequireAuthorization("CanEdit");
 
-app.UseStaticFiles();
+
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 app.Run();
+
+public record LoginDto(string Password);
+
+public sealed class ForwardAuthCookiesHandler : DelegatingHandler
+{
+    private readonly IHttpContextAccessor _http;
+
+    public ForwardAuthCookiesHandler(IHttpContextAccessor http) => _http = http;
+
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var ctx = _http.HttpContext;
+        if (ctx != null && ctx.Request.Headers.TryGetValue("Cookie", out var cookie))
+        {
+            // ensure not duplicated
+            if (!request.Headers.Contains("Cookie"))
+                request.Headers.TryAddWithoutValidation("Cookie", cookie.ToString());
+        }
+        return base.SendAsync(request, cancellationToken);
+    }
+}
+
+

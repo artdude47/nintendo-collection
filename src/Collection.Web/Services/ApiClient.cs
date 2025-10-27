@@ -35,12 +35,12 @@ namespace Collection.Web.Services
 
             // enum as string from API
             public string condition { get; set; } = "Good";
-            
+
             public bool hasBox { get; set; }
             public bool hasManual { get; set; }
 
             public decimal? purchasePrice { get; set; }
-            public string? purchaseDate { get; set; } 
+            public string? purchaseDate { get; set; }
             public decimal? estimatedValue { get; set; }
 
             public PlatformDto? platform { get; set; }
@@ -73,8 +73,9 @@ namespace Collection.Web.Services
         public async Task<StatsDto> GetStatsAsync() => await _http.GetFromJsonAsync<StatsDto>("/api/stats") ?? new StatsDto();
 
         public async Task<List<PlatformDto>> GetPlatformsAsync() => await _http.GetFromJsonAsync<List<PlatformDto>>("/api/platforms") ?? new();
+
         public async Task<Page<ItemDto>> GetItemsAsync(
-            string? platform, bool? isCib, int page, int pageSize, string? q = null, string? sort = null, string? kind = null)
+            string? platform, bool? isCib, int page, int pageSize, string? q = null, string? sort = null, string? kind = null, string? region = null)
         {
             var qs = new List<string>();
             if (!string.IsNullOrWhiteSpace(platform)) qs.Add($"platform={Uri.EscapeDataString(platform)}");
@@ -82,6 +83,8 @@ namespace Collection.Web.Services
             if (!string.IsNullOrWhiteSpace(q)) qs.Add($"q={Uri.EscapeDataString(q)}");
             if (!string.IsNullOrWhiteSpace(sort)) qs.Add($"sort={Uri.EscapeDataString(sort)}");
             if (!string.IsNullOrWhiteSpace(kind)) qs.Add($"kind={Uri.EscapeDataString(kind)}");
+            if (!string.IsNullOrWhiteSpace(region)) qs.Add($"region={Uri.EscapeDataString(region)}");
+
             qs.Add($"page={page}");
             qs.Add($"pageSize={pageSize}");
 

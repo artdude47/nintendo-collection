@@ -1,7 +1,7 @@
 using Collection.Domain;
 using Collection.Infrastructure;          // our DbContext lives here
 using Microsoft.AspNetCore.Http.Json;
-using System.Text.Json.Serialization; 
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;  // (cheap-mode safety)
 using Microsoft.EntityFrameworkCore;      // UseSqlite, DbContext
@@ -71,12 +71,12 @@ api.MapGet("/platforms", async (AppDbContext db) =>
 
 //Items: filtering + search + sorting + pagination
 api.MapGet("/items", async (
-    AppDbContext db, 
-    string? platform, 
-    bool? isCib, 
+    AppDbContext db,
+    string? platform,
+    bool? isCib,
     string? q,
     string? sort,
-    int page = 1, 
+    int page = 1,
     int pageSize = 50) =>
 {
     page = page < 1 ? 1 : page;
@@ -98,7 +98,7 @@ api.MapGet("/items", async (
 
     query = (sort ?? "value_desc") switch
     {
-       "title_asc" => query.OrderBy(i => i.Title),
+        "title_asc" => query.OrderBy(i => i.Title),
         "title_desc" => query.OrderByDescending(i => i.Title),
         "value_asc" => query.OrderBy(i => i.EstimatedValue ?? 0),
         "value_desc" => query.OrderByDescending(i => i.EstimatedValue ?? 0),
@@ -106,11 +106,11 @@ api.MapGet("/items", async (
         "created_desc" => query.OrderByDescending(i => i.CreatedAt),
         "platform_asc" => query.OrderBy(i => i.Platform!.Name),
         "platform_desc" => query.OrderByDescending(i => i.Platform!.Name),
-        "cib_asc" => query.OrderBy(i => (i.HasBox && i.HasManual)),          
+        "cib_asc" => query.OrderBy(i => (i.HasBox && i.HasManual)),
         "cib_desc" => query.OrderByDescending(i => (i.HasBox && i.HasManual)),
         "condition_asc" => query.OrderBy(i => i.Condition),
         "condition_desc" => query.OrderByDescending(i => i.Condition),
-        "notes_asc" => query.OrderBy(i => i.Notes == null).ThenBy(i => i.Notes),        
+        "notes_asc" => query.OrderBy(i => i.Notes == null).ThenBy(i => i.Notes),
         "notes_desc" => query.OrderByDescending(i => i.Notes == null).ThenByDescending(i => i.Notes),
         _ => query.OrderByDescending(i => i.EstimatedValue ?? 0),
     };
@@ -232,8 +232,8 @@ api.MapGet("/stats", async (AppDbContext db) =>
 });
 
 api.MapPost("/import", async (
-    IFormFile file,       
-    bool dryRun,         
+    IFormFile file,
+    bool dryRun,
     AppDbContext db) =>
 {
     if (file is null || file.Length == 0)
