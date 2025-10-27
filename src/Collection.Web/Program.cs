@@ -28,6 +28,12 @@ string[] DesiredPlatforms =
     "Amiibo", "Other"
 };
 
+string[] AllowedGenres =
+{
+     "Action","Adventure","RPG","Platformer","Puzzle","Sports","Racing",
+    "Strategy","Fighting","Shooter","Simulation","Party","Music","Other"
+};
+
 var builder = WebApplication.CreateBuilder(args);
 var isDev = builder.Environment.IsDevelopment();
 
@@ -160,6 +166,8 @@ api.MapGet("/platforms", async (AppDbContext db) =>
 
 api.MapGet("/meta/kinds", () => Results.Ok(Enum.GetNames(typeof(ItemKind))));
 
+api.MapGet("/genres", () => Results.Ok(AllowedGenres));
+
 //Items: filtering + search + sorting + pagination
 api.MapGet("/items", async (
     AppDbContext db,
@@ -169,6 +177,7 @@ api.MapGet("/items", async (
     string? sort,
     string? kind,
     string? region,
+    string? genre,
     int page = 1,
     int pageSize = 50) =>
 {
@@ -189,6 +198,11 @@ api.MapGet("/items", async (
     if (!string.IsNullOrWhiteSpace(region))
     {
         query = query.Where(i => i.Region == region);
+    }
+
+    if (!string.IsNullOrWhiteSpace(genre))
+    {
+        query = query.Where(i => i.Genre != null && i.Genre == genre);
     }
 
     if (!string.IsNullOrWhiteSpace(q))

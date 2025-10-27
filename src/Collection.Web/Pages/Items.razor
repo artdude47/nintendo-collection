@@ -82,6 +82,12 @@
                 <option value="@r">@r</option>
             }
         </select>
+
+        <label class="form-label mb-0 small text-muted">Genre:</label>
+        <select class="form-select form-select-sm w-auto" @onchange="OnGenreChange" value="@selectedGenre">
+            <option value="">(All)</option>
+            @foreach (var g in genreOptions) { <option value="@g">@g</option> }
+        </select>
     </div>
 
     <AuthorizeView>
@@ -386,7 +392,13 @@ else {
 
                         <div class="col-md-6">
                             <label class="form-label">Genre</label>
-                            <input class="form-control" @bind="editing.genre" placeholder="e.g., Platformer, RPG" />
+                            <select class="form-select" @bind="editing.genre">
+                                <option value="">(None)</option>
+                                @foreach (var g in genreOptions)
+                                {
+                                    <option value="@g">@g</option>
+                                }
+                            </select>
                         </div>
 
                         <div class="col-md-6">
@@ -521,7 +533,10 @@ else {
 
                     <div class="col-md-6">
                         <label class="form-label">Genre</label>
-                        <input class="form-control" @bind="NewItem.genre" />
+                        <select class="form-select" @bind="NewItem.genre">
+                            <option value="">(None)</option>
+                            @foreach (var g in genreOptions) { <option value="@g">@g</option> }
+                        </select>
                     </div>
 
                     <div class="col-md-6">
@@ -662,9 +677,6 @@ else {
 
 
 @code {
-
-
-
     // ---- State & DI ------
     ApiClient.ItemDto? editing;
     List<ApiClient.PlatformDto> platforms = new();
@@ -715,6 +727,9 @@ else {
 
     string? selectedKind;
     string? selectedRegion;
+
+    string? selectedGenre;
+    List<string> genreOptions = new();
 
     readonly string[] regionOptions = new[] { "NTSC-U", "NTSC-J", "PAL", "Other" };
 
@@ -846,8 +861,8 @@ else {
     protected override async Task OnInitializedAsync()
     {
         platforms = await Api.GetPlatformsAsync();
-
         kindOptions = await Http.GetFromJsonAsync<List<string>>("/api/meta/kinds") ?? new();
+        genreOptions = await Http.GetFromJsonAsync<List<string>>("/api/genres") ?? new();
         ApplyQueryOnce();
         await Load();
         stats = await Api.GetStatsAsync();
@@ -1295,6 +1310,13 @@ else {
     void OnRegionChange(ChangeEventArgs e)
     {
         selectedRegion = e.Value?.ToString();
+        _page = 1;
+        _ = DebouncedLoad();
+    }
+
+    void OnGenreChange(ChangeEventArgs e)
+    {
+        selectedGenre = e.Value?.ToString();
         _page = 1;
         _ = DebouncedLoad();
     }
