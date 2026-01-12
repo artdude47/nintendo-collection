@@ -1,0 +1,223 @@
+﻿@page "/"
+@using Collection.Domain
+@using Collection.Web.Services
+@using ApexCharts
+@inject InventoryService Inventory
+
+<PageTitle>Command Center</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0">Command Center</h3>
+        <div class="small opacity-75">
+            @(selectedPlatformId == 0 ? "Global Overview" : $"Filtering by: {SelectedPlatformName}")
+        </div>
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+        <label class="fw-bold small opacity-75">View:</label>
+        <select class="form-select form-select-sm w-auto shadow-sm" @onchange="OnFilterChange">
+            <option value="0">All Platforms</option>
+            @foreach (var p in platforms)
+            {
+                <option value="@p.Id">@p.Name</option>
+            }
+        </select>
+    </div>
+</div>
+
+<div class="row mb-4 g-3">
+    <div class="col-md-3">
+        <div class="card p-3 border shadow-sm bg-primary bg-opacity-10 h-100">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="small opacity-75 text-uppercase fw-bold">Market Value</div>
+                    <div class="h2 mb-0">@filteredItems.Sum(i => i.EstimatedValue ?? 0).ToString("C0")</div>
+                </div>
+                <span class="oi oi-graph opacity-50 display-6"></span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card p-3 border shadow-sm h-100">
+            <div class="small opacity-75 text-uppercase fw-bold">Total Spent</div>
+            <div class="h2 mb-0">@filteredItems.Sum(i => i.PurchasePrice ?? 0).ToString("C0")</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card p-3 border shadow-sm h-100">
+            <div class="small opacity-75 text-uppercase fw-bold">Item Count</div>
+            <div class="h2 mb-0">@filteredItems.Count</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card p-3 border shadow-sm h-100">
+            <div class="small opacity-75 text-uppercase fw-bold">Paper Profit</div>
+            <div class="h2 mb-0 @(Profit >= 0 ? "text-success" : "text-danger")">
+                @((Profit >= 0 ? "+" : "") + Profit.ToString("C0"))
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-4">
+        <div class="card border shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title mb-4">Total Value by Platform</h5>
+                <ApexChart @ref="chart1" TItem="ChartData" Title="" Options="donutOptions" Height="350">
+                    <ApexPointSeries TItem="ChartData"
+                                     Items="chartDataGlobalValue"
+                                     Name="Value"
+                                     SeriesType="SeriesType.Donut"
+                                     XValue="@(e => e.Label)"
+                                     YAggregate="@(e => e.Sum(x => x.Value))"
+                                     OrderByDescending="e=>e.Y" />
+                </ApexChart>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card border shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title mb-4">
+                    @(selectedPlatformId == 0 ? "Global Items by Category" : $"{SelectedPlatformName} Value Breakdown")
+                </h5>
+                <ApexChart @ref="chart2" TItem="ChartData" Title="" Options="pieOptions" Height="350">
+                    <ApexPointSeries TItem="ChartData"
+                                     Items="chartDataCategory"
+                                     Name="@(selectedPlatformId == 0 ? "Count" : "Value")"
+                                     SeriesType="SeriesType.Pie"
+                                     XValue="@(e => e.Label)"
+                                     YAggregate="@(e => e.Sum(x => x.Value))"
+                                     OrderByDescending="e=>e.Y" />
+                </ApexChart>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card border shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title mb-4">Acquisitions by Year</h5>
+                <ApexChart @ref="chart3" TItem="ChartData" Title="" Options="barOptions" Height="350">
+                    <ApexPointSeries TItem="ChartData"
+                                     Items="chartDataHistory"
+                                     Name="Items"
+                                     SeriesType="SeriesType.Bar"
+                                     XValue="@(e => e.Label)"
+                                     YAggregate="@(e => e.Sum(x => x.Value))" />
+                </ApexChart>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Item> allItems = new();
+    private List<Item> filteredItems = new();
+    private List<Platform> platforms = new();
+    private int selectedPlatformId = 0;
+
+    private ApexChart<ChartData> chart1 = default!;
+    private ApexChart<ChartData> chart2 = default!;
+    private ApexChart<ChartData> chart3 = default!;
+
+    private string SelectedPlatformName => platforms.FirstOrDefault(p => p.Id == selectedPlatformId)?.Name ?? "All";
+    private decimal Profit => filteredItems.Sum(i => (i.EstimatedValue ?? 0) - (i.PurchasePrice ?? 0));
+
+    public class ChartData { public string Label { get; set; } = ""; public decimal Value { get; set; } }
+
+    private List<ChartData> chartDataGlobalValue = new();
+    private List<ChartData> chartDataCategory = new();
+    private List<ChartData> chartDataHistory = new();
+
+    private static readonly List<string> CustomColors = new()
+    {
+        "#008FFB", "#00E396", "#FEB019", "#FF4560", "#775DD0", 
+        "#546E7A", "#26a69a", "#D10CE8", "#F9A3A4", "#9F82CE", 
+        "#3F51B5", "#F44336", "#4CAF50", "#FF9800", "#9C27B0", 
+        "#E91E63", "#607D8B", "#795548", "#8BC34A", "#FFC107"  
+    };
+
+    private ApexChartOptions<ChartData> donutOptions = new()
+    {
+        Theme = new Theme { Mode = Mode.Dark },
+        Colors = CustomColors,
+        Chart = new Chart { Background = "transparent" }
+    };
+
+    private ApexChartOptions<ChartData> pieOptions = new()
+    {
+        Theme = new Theme { Mode = Mode.Dark },
+        Colors = CustomColors, 
+        Chart = new Chart { Background = "transparent" }
+    };
+
+    private ApexChartOptions<ChartData> barOptions = new()
+    {
+        Theme = new Theme { Mode = Mode.Dark, Palette = PaletteType.Palette6 },
+        Chart = new Chart { Background = "transparent" },
+        PlotOptions = new PlotOptions { Bar = new PlotOptionsBar { BorderRadius = 2 } }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        allItems = await Inventory.GetAllItemsAsync();
+        platforms = await Inventory.GetPlatformsAsync();
+        await RecalculateAsync();
+    }
+
+    async Task OnFilterChange(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var id))
+        {
+            selectedPlatformId = id;
+            await RecalculateAsync();
+        }
+    }
+
+    async Task RecalculateAsync()
+    {
+        if (selectedPlatformId == 0)
+            filteredItems = allItems.ToList();
+        else
+            filteredItems = allItems.Where(i => i.PlatformId == selectedPlatformId).ToList();
+
+        chartDataGlobalValue = allItems
+            .GroupBy(i => i.Platform?.Name ?? "Unknown")
+            .Select(g => new ChartData { Label = g.Key, Value = g.Sum(i => i.EstimatedValue ?? 0) })
+            .OrderByDescending(x => x.Value)
+            .Take(15) 
+            .ToList();
+
+        if (selectedPlatformId == 0)
+        {
+            chartDataCategory = allItems
+                .GroupBy(i => i.Kind.ToString())
+                .Select(g => new ChartData { Label = g.Key, Value = g.Count() })
+                .OrderByDescending(x => x.Value)
+                .ToList();
+        }
+        else
+        {
+            chartDataCategory = filteredItems
+                .GroupBy(i => i.Kind.ToString())
+                .Select(g => new ChartData { Label = g.Key, Value = g.Sum(i => i.EstimatedValue ?? 0) })
+                .OrderByDescending(x => x.Value)
+                .ToList();
+        }
+
+        chartDataHistory = filteredItems
+            .Where(i => i.PurchaseDate.HasValue)
+            .GroupBy(i => i.PurchaseDate!.Value.Year)
+            .Select(g => new ChartData { Label = g.Key.ToString(), Value = g.Count() })
+            .OrderBy(x => x.Label)
+            .ToList();
+
+        if (chart1 != null) await chart1.UpdateSeriesAsync(true);
+        if (chart2 != null) await chart2.UpdateSeriesAsync(true);
+        if (chart3 != null) await chart3.UpdateSeriesAsync(true);
+    }
+}

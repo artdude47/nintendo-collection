@@ -1,6 +1,13 @@
 ﻿@inherits LayoutComponentBase
-<PageTitle>Nintendo Collection</PageTitle>
 
-<div class="container-narrow container py-4">
-    @Body
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <article class="content px-4 py-4">
+            @Body
+        </article>
+    </main>
 </div>

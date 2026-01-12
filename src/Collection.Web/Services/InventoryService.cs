@@ -135,5 +135,11 @@ public class InventoryService
             await db.SaveChangesAsync();
         }
     }
+
+    public async Task<List<Item>> GetAllItemsAsync()
+    {
+        using var db = await _dbFactory.CreateDbContextAsync();
+        return await db.Items.Include(i => i.Platform).AsNoTracking().ToListAsync();
+    }
 }
 

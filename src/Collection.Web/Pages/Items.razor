@@ -289,7 +289,6 @@ else
 
 @code {
     // --- STATE ---
-    // We use DOMAIN objects now, not DTOs
     Item? editing; 
     Item? details;
     
@@ -369,7 +368,6 @@ else
             PurchaseDate = source.PurchaseDate,
             EstimatedValue = source.EstimatedValue,
             Notes = source.Notes,
-            // Add other fields (Publisher/Developer) as needed
         };
         
         await JS.InvokeVoidAsync("modal.show", "editModal");
@@ -426,7 +424,6 @@ else
     }
 
     // --- FILTERS & CSV ---
-    // (Keep your CSV logic here, just ensure it uses CsvService.ProcessAsync)
     byte[]? lastUpload; string? lastUploadName; bool canCommitImport; string importStatus = "";
 
     async Task UploadCsvDryRun(InputFileChangeEventArgs e)
@@ -437,7 +434,6 @@ else
         await stream.CopyToAsync(ms);
         ms.Position = 0;
         
-        // Use the new Service!
         var report = await CsvService.ProcessAsync(ms, dryRun: true);
         
         if (report.Rows.All(r => r.IsValid)) {
@@ -461,7 +457,6 @@ else
     }
     
     // --- UI HELPERS ---
-    // (Sorting/Paging handlers same as before, just call Load())
     void OnSearchInput(ChangeEventArgs e) { search = e.Value?.ToString(); _ = DebouncedLoad(); }
     void ClearSearch() { search = ""; _ = DebouncedLoad(0); }
     void OnPageSizeChange(ChangeEventArgs e) { 
@@ -478,13 +473,13 @@ else
     void Next() { if (_page < totalPages) { _page++; _ = Load(); }}
     void Prev() { if (_page > 1) { _page--; _ = Load(); }}
     
-    RenderFragment SortGlyph(string key) => builder => { /* Your sort glyph logic */ };
-    void SetSort(string key) { /* Your sort logic */ _ = Load(); }
+    RenderFragment SortGlyph(string key) => builder => {  };
+    void SetSort(string key) {  _ = Load(); }
 
     // Query String Logic
     bool _queryApplied;
-    void ApplyQueryOnce() { /* ... */ } 
-    void UpdateQueryUrl() { /* ... */ }
+    void ApplyQueryOnce() {  } 
+    void UpdateQueryUrl() {  }
 
     // Toast Logic
     record Toast(string message, string variant);
@@ -494,6 +489,5 @@ else
     void DismissToast(Toast t) { toasts.Remove(t); }
     
     // Login Logic
-    // (Keep your existing Login logic calling the endpoints we made in Program.cs)
     async Task OpenLoginModal() => await JS.InvokeVoidAsync("modal.show", "loginModal");
 }
