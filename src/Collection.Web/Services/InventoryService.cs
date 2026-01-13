@@ -33,6 +33,7 @@ public class InventoryService
         using var db = await _dbFactory.CreateDbContextAsync();
         var query = db.Items.Include(i => i.Platform).AsNoTracking();
 
+        
         // --- Filters ---
         if (!string.IsNullOrWhiteSpace(platform))
             query = query.Where(i => i.Platform != null && i.Platform.Name == platform);
@@ -89,8 +90,6 @@ public class InventoryService
             item.CreatedAt = DateTime.UtcNow;
             item.UpdatedAt = DateTime.UtcNow;
 
-            // Ensure we don't try to insert a duplicate Platform object
-            // We just want to link by ID
             item.Platform = null;
 
             db.Items.Add(item);

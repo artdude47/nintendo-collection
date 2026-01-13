@@ -45,7 +45,7 @@ public class CsvImportService
         // 2. Create Context
         using var db = await _dbFactory.CreateDbContextAsync();
 
-        // 3. Cache Platforms (Performance optimization)
+        // 3. Cache Platforms 
         var platformMap = await db.Platforms.AsNoTracking()
             .ToDictionaryAsync(p => p.Name, p => p.Id, StringComparer.OrdinalIgnoreCase);
 
@@ -57,11 +57,8 @@ public class CsvImportService
             lineNum++;
             report.RowsRead++;
 
-            // Uses your custom logic (included at bottom of file)
             var cells = SplitCsv(lineText);
 
-            // --- MAPPING (UPDATED FOR 2026 MODEL) ---
-            // Old fields
             var rawTitle = Get(cells, 0);
             var rawPlatform = Get(cells, 1);
             var rawRegion = Get(cells, 2);
@@ -73,7 +70,6 @@ public class CsvImportService
             var rawValue = Get(cells, 8);
             var rawNotes = Get(cells, 9);
 
-            // NEW FIELDS (Added based on your Item.cs)
             var rawPublisher = Get(cells, 10);
             var rawDeveloper = Get(cells, 11);
             var rawGenre = Get(cells, 12);
@@ -148,7 +144,7 @@ public class CsvImportService
         return report;
     }
 
-    // --- YOUR LOGIC (Verified: It works for standard CSVs) ---
+
     private static string[] SplitCsv(string line)
     {
         var result = new List<string>();

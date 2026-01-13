@@ -2,7 +2,6 @@
 <PageTitle>Nintendo Collection</PageTitle>
 @using Collection.Domain
 @using Collection.Web.Services
-@using Microsoft.AspNetCore.Components.Authorization
 
 @inject InventoryService Inventory
 @inject CsvImportService CsvService
@@ -26,13 +25,9 @@
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div class="d-flex align-items-center gap-2">
-        <AuthorizeView>
-            <Authorized>
                 <button class="btn btn-success btn-sm" title="Add a new item" @onclick="OpenNewModal">
                     <span class="oi oi-plus me-1"></span>Add Item
                 </button>
-            </Authorized>
-        </AuthorizeView>
 
         <a class="btn btn-outline-secondary btn-sm" title="Download CSV" href="/api/export.csv">
             <span class="oi oi-data-transfer-download me-1"></span>Export CSV
@@ -79,17 +74,6 @@
             }
         </select>
     </div>
-
-    <AuthorizeView>
-        <Authorized>
-            <form method="post" action="/logout" class="d-inline">
-                <button type="submit" class="btn btn-outline-secondary btn-sm">Sign out</button>
-            </form>
-        </Authorized>
-        <NotAuthorized>
-            <button type="button" class="btn btn-outline-primary btn-sm" @onclick="OpenLoginModal">Sign In</button>
-        </NotAuthorized>
-    </AuthorizeView>
 </div>
 
 @if (!string.IsNullOrWhiteSpace(selectedPlatform) || !string.IsNullOrWhiteSpace(selectedCib) || !string.IsNullOrWhiteSpace(search))
@@ -107,8 +91,6 @@
     </div>
 }
 
-<AuthorizeView>
-    <Authorized>
         <details class="mb-3">
             <summary class="fw-semibold">Data (CSV Import)</summary>
             <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
@@ -119,8 +101,6 @@
                 <span class="text-muted small">@importStatus</span>
             </div>
         </details>
-    </Authorized>
-</AuthorizeView>
 
 @if (isLoading)
 {
@@ -155,12 +135,8 @@ else
                     <td>@i.PurchasePrice?.ToString("C")</td>
                     <td>@i.EstimatedValue?.ToString("C")</td>
                     <td @onclick:stopPropagation="true">
-                        <AuthorizeView>
-                            <Authorized>
                                 <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => StartEdit(i)">Edit</button>
                                 <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(i.Id)">Delete</button>
-                            </Authorized>
-                        </AuthorizeView>
                     </td>
                 </tr>
             }
@@ -292,7 +268,6 @@ else
     Item? editing; 
     Item? details;
     
-    // Use the Wrapper from ApiClient or InventoryService (make sure they match)
     ApiClient.Page<Item> pageResult = new() { items = new(), total = 0 };
     List<Platform> platforms = new();
     CancellationTokenSource? _searchCts;
@@ -317,10 +292,8 @@ else
     // --- LIFECYCLE ---
     protected override async Task OnInitializedAsync()
     {
-        // Load platforms directly from DB service
         platforms = await Inventory.GetPlatformsAsync();
         
-        // Load URL query params
         ApplyQueryOnce();
         
         await Load();
@@ -334,7 +307,6 @@ else
         {
             bool? isCib = string.IsNullOrEmpty(selectedCib) ? null : selectedCib == "true";
             
-            // CALL INVENTORY SERVICE
             pageResult = await Inventory.GetItemsAsync(
                 selectedPlatform, isCib, search, sort, selectedKind, selectedRegion, null, _page, _pageSize
             );
@@ -352,7 +324,6 @@ else
     // --- ACTIONS ---
     async Task StartEdit(Item source)
     {
-        // Deep copy manually to prevent live-editing the table row
         editing = new Item 
         { 
             Id = source.Id, 
@@ -488,6 +459,4 @@ else
     void ToastError(string m) => toasts.Add(new Toast(m, "danger"));
     void DismissToast(Toast t) { toasts.Remove(t); }
     
-    // Login Logic
-    async Task OpenLoginModal() => await JS.InvokeVoidAsync("modal.show", "loginModal");
 }

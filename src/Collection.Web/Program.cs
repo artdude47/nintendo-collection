@@ -31,14 +31,6 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddRateLimiter(_ => _
     .AddFixedWindowLimiter("tight", o => { o.PermitLimit = 100; o.Window = TimeSpan.FromMinutes(1); }));
 
-builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-    .AddCookie(o => {
-        o.Cookie.Name = "nc-auth";
-        o.LoginPath = "/";
-        o.ExpireTimeSpan = TimeSpan.FromDays(7);
-    });
-builder.Services.AddAuthorization(o => o.AddPolicy("CanEdit", p => p.RequireAuthenticatedUser()));
 
 builder.Services.ConfigureHttpJsonOptions(opt => {
     opt.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -64,28 +56,11 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
 app.UseRateLimiter();
-app.UseAuthentication();
-app.UseAuthorization();
 
 
 app.MapItemEndpoints();
 
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
-
-app.MapPost("/login.ajax", async (string? password, IConfiguration config, HttpContext ctx) => {
-    var adminPw = config["Admin:Password"] ?? "changeme";
-    if (password != adminPw) return Results.Unauthorized();
-
-    var claims = new[] { new Claim(ClaimTypes.Name, "Admin") };
-    var id = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-    await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(id));
-    return Results.Ok(new { ok = true });
-}).DisableAntiforgery();
-
-app.MapPost("/logout", async (HttpContext ctx) => {
-    await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-    return Results.Redirect("/");
-});
 
 app.Run();
