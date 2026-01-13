@@ -62,12 +62,28 @@ public class InventoryService
         var total = await query.CountAsync();
 
         // --- SORTING ---
-        query = (sort ?? "title_asc") switch
+        query = (sort ?? "title_asc").ToLower() switch
         {
-            "title_asc" => query.OrderBy(i => i.Title),
             "title_desc" => query.OrderByDescending(i => i.Title),
+
+            "platform_asc" => query.OrderBy(i => i.Platform!.Name),
+            "platform_desc" => query.OrderByDescending(i => i.Platform!.Name),
+
+            "cib_asc" => query.OrderBy(i => i.HasBox && i.HasManual),
+            "cib_desc" => query.OrderByDescending(i => i.HasBox && i.HasManual),
+
+            "condition_asc" => query.OrderBy(i => i.Condition),
+            "condition_desc" => query.OrderByDescending(i => i.Condition),
+
+            "purchase_asc" => query.OrderBy(i => i.PurchasePrice ?? 0),
+            "purchase_desc" => query.OrderByDescending(i => i.PurchasePrice ?? 0),
+
+            "value_asc" => query.OrderBy(i => i.EstimatedValue ?? 0),
             "value_desc" => query.OrderByDescending(i => i.EstimatedValue ?? 0),
+
             "created_desc" => query.OrderByDescending(i => i.CreatedAt),
+
+            // Default: Title Ascending
             _ => query.OrderBy(i => i.Title)
         };
 

@@ -267,7 +267,7 @@ else
     // --- STATE ---
     Item? editing; 
     Item? details;
-    
+
     ApiClient.Page<Item> pageResult = new() { items = new(), total = 0 };
     List<Platform> platforms = new();
     CancellationTokenSource? _searchCts;
@@ -281,7 +281,7 @@ else
     string sort = "title_asc";
     int _page = 1;
     int _pageSize = 50;
-    
+
     int totalPages => Math.Max(1, (int)Math.Ceiling((double)pageResult.total / _pageSize));
     bool isLoading;
 
@@ -293,9 +293,9 @@ else
     protected override async Task OnInitializedAsync()
     {
         platforms = await Inventory.GetPlatformsAsync();
-        
+
         ApplyQueryOnce();
-        
+
         await Load();
     }
 
@@ -306,11 +306,11 @@ else
         try
         {
             bool? isCib = string.IsNullOrEmpty(selectedCib) ? null : selectedCib == "true";
-            
+
             pageResult = await Inventory.GetItemsAsync(
                 selectedPlatform, isCib, search, sort, selectedKind, selectedRegion, null, _page, _pageSize
             );
-            
+
             UpdateQueryUrl();
         }
         catch (Exception ex) { ToastError("Load failed: " + ex.Message); }
@@ -340,7 +340,7 @@ else
             EstimatedValue = source.EstimatedValue,
             Notes = source.Notes,
         };
-        
+
         await JS.InvokeVoidAsync("modal.show", "editModal");
     }
 
@@ -365,7 +365,7 @@ else
 
         // Call Service
         await Inventory.SaveItemAsync(editing);
-        
+
         await JS.InvokeVoidAsync("modal.hide", "editModal");
         editing = null;
         ToastOk("Saved!");
@@ -387,7 +387,7 @@ else
         editing = null;
         JS.InvokeVoidAsync("modal.hide", "editModal");
     }
-    
+
     void OpenDetails(Item item)
     {
         details = item;
@@ -404,9 +404,9 @@ else
         using var ms = new MemoryStream();
         await stream.CopyToAsync(ms);
         ms.Position = 0;
-        
+
         var report = await CsvService.ProcessAsync(ms, dryRun: true);
-        
+
         if (report.Rows.All(r => r.IsValid)) {
             canCommitImport = true;
             importStatus = $"Dry run OK. {report.Rows.Count} rows.";
@@ -426,7 +426,7 @@ else
         importStatus = "Imported!";
         await Load();
     }
-    
+
     // --- UI HELPERS ---
     void OnSearchInput(ChangeEventArgs e) { search = e.Value?.ToString(); _ = DebouncedLoad(); }
     void ClearSearch() { search = ""; _ = DebouncedLoad(0); }
@@ -435,17 +435,40 @@ else
     }
     void OnKindChange(ChangeEventArgs e) { selectedKind = e.Value?.ToString(); _page=1; _=DebouncedLoad(); }
     void OnRegionChange(ChangeEventArgs e) { selectedRegion = e.Value?.ToString(); _page=1; _=DebouncedLoad(); }
-    
+
     async Task DebouncedLoad(int delayMs = 300) {
         _searchCts?.Cancel(); _searchCts = new();
         try { await Task.Delay(delayMs, _searchCts.Token); await Load(); } catch {}
     }
-    
+
     void Next() { if (_page < totalPages) { _page++; _ = Load(); }}
     void Prev() { if (_page > 1) { _page--; _ = Load(); }}
-    
-    RenderFragment SortGlyph(string key) => builder => {  };
-    void SetSort(string key) {  _ = Load(); }
+
+    RenderFragment SortGlyph(string key) => builder =>
+    {
+        if (sort.StartsWith(key, StringComparison.OrdinalIgnoreCase))
+        {
+            var isAsc = sort.EndsWith("_asc", StringComparison.OrdinalIgnoreCase);
+            builder.OpenElement(0, "span");
+            builder.AddAttribute(1, "class", "small text-muted ms-1");
+            builder.AddContent(2, isAsc ? "▲" : "▼");
+            builder.CloseElement();
+        }
+    };
+
+    void SetSort(string key)
+    {
+        if (sort.StartsWith(key, StringComparison.OrdinalIgnoreCase))
+        {
+            sort = sort.EndsWith("_asc") ? $"{key}_desc" : $"{key}_asc";
+        }
+        else
+        {
+            sort = (key == "value" || key == "purchase") ? $"{key}_desc" : $"{key}_asc";
+        }
+        _page = 1;
+        _ = Load();
+    }
 
     // Query String Logic
     bool _queryApplied;
@@ -455,8 +478,22 @@ else
     // Toast Logic
     record Toast(string message, string variant);
     List<Toast> toasts = new();
-    void ToastOk(string m) => toasts.Add(new Toast(m, "success"));
-    void ToastError(string m) => toasts.Add(new Toast(m, "danger"));
-    void DismissToast(Toast t) { toasts.Remove(t); }
+    void ToastOk(string m) => AddToast(m, "success");
+    void ToastError(string m) => AddToast(m, "danger");
+
+    void AddToast(string m, string v)
+    {
+        var t = new Toast(m, v);
+        toasts.Add(t);
+        StateHasChanged();
+
+        _ = Task.Delay(4000).ContinueWith(_ =>
+        {
+            toasts.Remove(t);
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    void DismissToast(Toast t) { toasts.Remove(t); StateHasChanged(); }
     
 }
