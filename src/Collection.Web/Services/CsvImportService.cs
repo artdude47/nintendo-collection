@@ -1,27 +1,12 @@
 ﻿using Collection.Domain;
 using Collection.Infrastructure;
+using CsvHelper; 
+using CsvHelper.Configuration;
 using Microsoft.EntityFrameworkCore;
+using System.Formats.Asn1;
 using System.Globalization;
-using System.Text;
 
 namespace Collection.Web.Services;
-
-public class CsvImportReport
-{
-    public int RowsRead { get; set; }
-    public int RowsInserted { get; set; }
-    public bool DryRun { get; set; }
-    public List<RowResult> Rows { get; set; } = new();
-
-    public class RowResult
-    {
-        public int LineNumber { get; set; }
-        public string? Title { get; set; }
-        public string? Platform { get; set; }
-        public List<string> Errors { get; set; } = new();
-        public bool IsValid => Errors.Count == 0;
-    }
-}
 
 public class CsvImportService
 {
@@ -32,170 +17,87 @@ public class CsvImportService
         _dbFactory = dbFactory;
     }
 
-    public async Task<CsvImportReport> ProcessAsync(Stream stream, bool dryRun)
+    public record ImportRow(bool IsValid, string Message, Item? Item);
+    public record ImportReport(List<ImportRow> Rows);
+
+    public async Task<ImportReport> ProcessAsync(Stream fileStream, bool dryRun)
     {
-        var report = new CsvImportReport { DryRun = dryRun };
-
-        using var reader = new StreamReader(stream);
-
-        // 1. Skip Header Row
-        string? header = await reader.ReadLineAsync();
-        if (header is null) return report;
-
-        // 2. Create Context
-        using var db = await _dbFactory.CreateDbContextAsync();
-
-        // 3. Cache Platforms 
-        var platformMap = await db.Platforms.AsNoTracking()
-            .ToDictionaryAsync(p => p.Name, p => p.Id, StringComparer.OrdinalIgnoreCase);
-
-        int lineNum = 1;
-        string? lineText;
-
-        while ((lineText = await reader.ReadLineAsync()) is not null)
+        using var reader = new StreamReader(fileStream);
+        using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
         {
-            lineNum++;
-            report.RowsRead++;
+            PrepareHeaderForMatch = args => args.Header.ToLower(),
+            MissingFieldFound = null
+        });
 
-            var cells = SplitCsv(lineText);
+        var records = csv.GetRecords<CsvItemDto>().ToList();
+        var rows = new List<ImportRow>();
 
-            var rawTitle = Get(cells, 0);
-            var rawPlatform = Get(cells, 1);
-            var rawRegion = Get(cells, 2);
-            var rawCond = Get(cells, 3);
-            var rawBox = Get(cells, 4);
-            var rawManual = Get(cells, 5);
-            var rawPrice = Get(cells, 6);
-            var rawDate = Get(cells, 7);
-            var rawValue = Get(cells, 8);
-            var rawNotes = Get(cells, 9);
+        using var db = await _dbFactory.CreateDbContextAsync();
+        var platforms = await db.Platforms.ToListAsync();
 
-            var rawPublisher = Get(cells, 10);
-            var rawDeveloper = Get(cells, 11);
-            var rawGenre = Get(cells, 12);
-            var rawYear = Get(cells, 13);
-            var rawBarcode = Get(cells, 14);
-            var rawKind = Get(cells, 15);
-
-            var rr = new CsvImportReport.RowResult
+        foreach (var record in records)
+        {
+            if (string.IsNullOrWhiteSpace(record.Title))
             {
-                LineNumber = lineNum,
-                Title = rawTitle,
-                Platform = rawPlatform
+                rows.Add(new ImportRow(false, "Missing Title", null));
+                continue;
+            }
+
+            var platformName = string.IsNullOrWhiteSpace(record.Platform) ? "Unknown" : record.Platform;
+            var platform = platforms.FirstOrDefault(p => p.Name.Equals(platformName, StringComparison.OrdinalIgnoreCase));
+
+            if (platform == null)
+            {
+                platform = new Platform { Name = platformName };
+                db.Platforms.Add(platform);
+                platforms.Add(platform); 
+            }
+
+            var item = new Item
+            {
+                Title = record.Title,
+                Platform = platform,
+
+                Condition = Enum.TryParse<Condition>(record.Condition, true, out var c) ? c : Condition.Good,
+                Kind = Enum.TryParse<ItemKind>(record.Kind, true, out var k) ? k : ItemKind.Game,
+                Region = record.Region ?? "NTSC-U",
+                HasBox = record.HasBox == "Yes" || record.HasBox == "true",
+                HasManual = record.HasManual == "Yes" || record.HasManual == "true",
+                EstimatedValue = decimal.TryParse(record.EstimatedValue, out var ev) ? ev : null,
+                PurchasePrice = decimal.TryParse(record.PurchasePrice, out var pp) ? pp : null,
+                PurchaseDate = DateOnly.TryParse(record.PurchaseDate, out var pd) ? pd : null,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
 
-            // --- VALIDATION ---
-            if (string.IsNullOrWhiteSpace(rawTitle))
-                rr.Errors.Add("Title is required.");
+            rows.Add(new ImportRow(true, "OK", item));
 
-            int platformId = 0;
-            if (string.IsNullOrWhiteSpace(rawPlatform))
-                rr.Errors.Add("Platform is required.");
-            else if (!platformMap.TryGetValue(rawPlatform.Trim(), out var pid))
-                rr.Errors.Add($"Unknown platform '{rawPlatform}'.");
-            else
-                platformId = pid;
-
-            // Parse Enums and Nullables safely
-            if (!Enum.TryParse<Condition>(rawCond?.Trim(), true, out var condition))
-                condition = Condition.Good; // Default
-
-            ItemKind? kind = null;
-            if (!string.IsNullOrWhiteSpace(rawKind) && Enum.TryParse<ItemKind>(rawKind.Trim(), true, out var k))
-                kind = k;
-
-            int? releaseYear = null;
-            if (!string.IsNullOrWhiteSpace(rawYear) && int.TryParse(rawYear.Trim(), out var y))
-                releaseYear = y;
-
-            if (rr.IsValid && !dryRun)
+            if (!dryRun)
             {
-                var item = new Item
-                {
-                    Title = rawTitle!.Trim(),
-                    PlatformId = platformId,
-                    Region = rawRegion ?? "NTSC-U",
-                    Condition = condition,
-                    HasBox = ParseBool(rawBox),
-                    HasManual = ParseBool(rawManual),
-                    PurchasePrice = ParseDecimal(rawPrice),
-                    PurchaseDate = ParseDate(rawDate),
-                    EstimatedValue = ParseDecimal(rawValue),
-                    Notes = rawNotes?.Trim(),
-
-                    // New Fields
-                    Publisher = rawPublisher?.Trim(),
-                    Developer = rawDeveloper?.Trim(),
-                    Genre = rawGenre?.Trim(),
-                    ReleaseYear = releaseYear,
-                    Barcode = rawBarcode?.Trim(),
-                    Kind = kind,
-
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
                 db.Items.Add(item);
-                report.RowsInserted++;
             }
-            report.Rows.Add(rr);
         }
 
-        if (!dryRun) await db.SaveChangesAsync();
-        return report;
-    }
-
-
-    private static string[] SplitCsv(string line)
-    {
-        var result = new List<string>();
-        var cur = new StringBuilder();
-        bool inQuotes = false;
-        for (int i = 0; i < line.Length; i++)
+        if (!dryRun)
         {
-            var c = line[i];
-            if (c == '\"')
-            {
-                // Handle escaped quotes ("") inside a quoted string
-                if (inQuotes && i + 1 < line.Length && line[i + 1] == '\"')
-                {
-                    cur.Append('\"');
-                    i++;
-                }
-                else
-                {
-                    inQuotes = !inQuotes;
-                }
-            }
-            else if (c == ',' && !inQuotes)
-            {
-                result.Add(cur.ToString());
-                cur.Clear();
-            }
-            else
-            {
-                cur.Append(c);
-            }
+            await db.SaveChangesAsync();
         }
-        result.Add(cur.ToString());
-        return result.ToArray();
+
+        return new ImportReport(rows);
     }
 
-    // --- Helpers ---
-    private static string? Get(string[] a, int i) => i < a.Length ? a[i] : null;
-
-    private static decimal? ParseDecimal(string? s)
+    // Helper class to match CSV headers
+    public class CsvItemDto
     {
-        if (string.IsNullOrWhiteSpace(s)) return null;
-        return decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out var d) ? d : null;
+        public string? Title { get; set; }
+        public string? Platform { get; set; }
+        public string? Condition { get; set; }
+        public string? Kind { get; set; }
+        public string? Region { get; set; }
+        public string? HasBox { get; set; }
+        public string? HasManual { get; set; }
+        public string? EstimatedValue { get; set; }
+        public string? PurchasePrice { get; set; }
+        public string? PurchaseDate { get; set; }
     }
-
-    private static DateOnly? ParseDate(string? s)
-    {
-        if (string.IsNullOrWhiteSpace(s)) return null;
-        // Allows yyyy-MM-dd
-        return DateOnly.TryParseExact(s.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
-    }
-
-    private static bool ParseBool(string? s) =>
-        s?.Trim().Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
 }

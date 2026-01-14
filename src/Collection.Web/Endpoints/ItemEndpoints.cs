@@ -1,8 +1,11 @@
 ﻿using Collection.Domain;
 using Collection.Infrastructure;
 using Collection.Web.Services;
+using CsvHelper;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 using System.Text;
 
 namespace Collection.Web.Endpoints;
@@ -30,7 +33,7 @@ public static class ItemEndpoints
         group.MapDelete("/items/{id:int}", DeleteItem);
 
         // Import / Export
-        group.MapGet("/export.csv", ExportCsv);
+        group.MapGet("/export.csv", async (InventoryService inv) => await ExportCsv(inv));
         group.MapPost("/import", ImportCsv).DisableAntiforgery();
     }
 
@@ -107,8 +110,34 @@ public static class ItemEndpoints
         return Results.Ok(report);
     }
 
-    static async Task<IResult> ExportCsv(AppDbContext db)
+    private static async Task<IResult> ExportCsv(InventoryService inventory)
     {
-        return Results.Ok();
+        var items = await inventory.GetAllItemsAsync();
+
+        using var memory = new MemoryStream();
+        using var writer = new StreamWriter(memory);
+        using var csv = new CsvHelper.CsvWriter(writer, System.Globalization.CultureInfo.InvariantCulture);
+
+        var exportRows = items.Select(i => new
+        {
+            i.Id,
+            i.Title,
+            Platform = i.Platform?.Name,
+            i.Kind,
+            i.Condition,
+            i.Region,
+            CIB = (i.HasBox && i.HasManual) ? "Yes" : "No",
+            Value = i.EstimatedValue,
+            Paid = i.PurchasePrice,
+            Bought = i.PurchaseDate?.ToString("yyyy-MM-dd")
+        });
+
+        await csv.WriteRecordsAsync(exportRows);
+        await writer.FlushAsync();
+
+        return Results.File(
+            memory.ToArray(),
+            "text/csv",
+            $"collection-export-{DateTime.UtcNow:yyyyMMdd}.csv");
     }
 }
